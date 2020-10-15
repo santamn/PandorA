@@ -1,6 +1,9 @@
 package main
 
-import "github.com/getlantern/systray"
+import (
+	"fmt"
+	"pandora/data"
+)
 
 func main() {
 	// pandora := app.New()
@@ -13,13 +16,12 @@ func main() {
 	// window.SetContent(object)
 	// window.ShowAndRun()
 
-	systray.Run(onReady, onExit)
-}
+	client, err := data.NewLoggedInClient("a0180935", "SCP-8900-ex")
+	if err != nil {
+		fmt.Println(err)
+	}
 
-func onReady() {
-	systray.SetTitle("Awesome App")
-	systray.SetTooltip("Pretty awesome")
-	systray.AddMenuItem("Quit", "Quit the whole app")
+	if err := data.DownloadPDF(client, "2020-888-H730-002"); err != nil {
+		fmt.Println(err)
+	}
 }
-
-func onExit() {}

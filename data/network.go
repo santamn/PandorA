@@ -3,11 +3,12 @@ package data
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
@@ -15,8 +16,6 @@ import (
 )
 
 const (
-	// URL for Kyoto University's CAS system
-	casURL = "https://cas.ecs.kyoto-u.ac.jp/cas/login?service="
 	// Domain and Protocol for PandA
 	pandaDomain = "https://panda.ecs.kyoto-u.ac.jp"
 	// URL for PandA log in page
@@ -24,47 +23,99 @@ const (
 	// URL for getting all assignments
 	pandaAllAssignments = pandaDomain + "/direct/assignment/my.json"
 	// URL for Resources
-	pandaResources = "/direct/content/site"
+	pandaResources = pandaDomain + "/direct/content/site/"
 )
 
 var (
-	// URL for cas login page
-	casLogin = casURL + url.QueryEscape(pandaLogin)
+	// URL for Kyoto University's CAS Login System
+	casURL = "https://cas.ecs.kyoto-u.ac.jp/cas/login?service=" + url.QueryEscape(pandaLogin)
 )
 
-// 現在受講中の講義のSITEIDを収集する関数
-func collectSiteID(loggedInClient *http.Client) (siteIDs []string, err error) {
+// DownloadPDF 科目のサイトに登録されたPDFをすべてダウンロードする関数
+func DownloadPDF(loggedInClient *http.Client, siteID string) error {
+	// リソース情報を取得するための構造体
+	type (
+		contentCollection struct {
+			Size  int64  `json:"size"`
+			Type  string `json:"type"`
+			Title string `json:"title"`
+			URL   string `json:"url"`
+		}
+
+		resources struct {
+			Collection []contentCollection `json:"content_collection"`
+		}
+	)
+
+	url := pandaResources + siteID + ".json"
+	resp, err := loggedInClient.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	var r resources
+	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
+		return err
+	}
+
+	for _, col := range r.Collection {
+		if col.Type != "application/pdf" {
+			continue
+		}
+
+		resp, err := loggedInClient.Get(col.URL)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+
+		fmt.Println("Title", col.Title)
+		file, err := os.Create(col.Title)
+		if err != nil {
+			return err
+		}
+
+		written, err := io.Copy(file, resp.Body)
+		if err != nil {
+			return err
+		}
+		if written != col.Size {
+			return errors.New("Invalid bytes")
+		}
+	}
+
+	return nil
+}
+
+// CollectSiteID 現在受講中の講義のSITEIDを収集する関数
+func CollectSiteID(loggedInClient *http.Client) (siteIDs []string, err error) {
 	// Assignment API からSITEIDを取り出すための構造体
 	type (
 		assignmentCollection struct {
 			Context string `json:"context"`
 		}
 
-		myAssignment struct {
+		myAssignments struct {
 			Collection []assignmentCollection `json:"assignment_collection"`
 		}
 	)
 
-	response, err := loggedInClient.Get(pandaAllAssignments)
+	resp, err := loggedInClient.Get(pandaAllAssignments)
 	if err != nil {
 		return siteIDs, err
 	}
-	defer response.Body.Close()
+	defer resp.Body.Close()
 
-	bytes, err := ioutil.ReadAll(response.Body)
-	if err != nil {
-		return siteIDs, err
-	}
-
-	var assignments myAssignment
-	if err := json.Unmarshal(bytes, &assignments); err != nil {
+	var a myAssignments
+	if err := json.NewDecoder(resp.Body).Decode(&a); err != nil {
 		return siteIDs, err
 	}
 
 	// SITEIDの値を重複なくスライスに格納する
 	m := make(map[string]struct{})
-	siteIDs = make([]string, 0, len(assignments.Collection))
-	for _, col := range assignments.Collection {
+	siteIDs = make([]string, 0, len(a.Collection))
+	for _, col := range a.Collection {
 		if _, ok := m[col.Context]; !ok {
 			m[col.Context] = struct{}{}
 			siteIDs = append(siteIDs, col.Context)
@@ -74,9 +125,8 @@ func collectSiteID(loggedInClient *http.Client) (siteIDs []string, err error) {
 	return siteIDs, nil
 }
 
-// LoggedInClient ログイン済みのクライアントを返す
-func LoggedInClient(ecsID, password string) (client *http.Client, err error) {
-	// set cookie jar
+// NewLoggedInClient ログイン済みのクライアントを返す関数
+func NewLoggedInClient(ecsID, password string) (client *http.Client, err error) {
 	jar, _ := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
 	client = &http.Client{Jar: jar}
 
@@ -84,18 +134,18 @@ func LoggedInClient(ecsID, password string) (client *http.Client, err error) {
 	// この際Pandaのドメインに対しJESESSIONIDが紐付けられる
 	loginPage, err := client.Get(pandaLogin)
 	if err != nil {
-		return
+		return client, err
 	}
 	defer loginPage.Body.Close()
 
-	// get LT value
+	// ログインページからLT(おそらくログインチケットの略)を取得
 	lt, err := getLT(loginPage.Body)
 	if err != nil {
-		return
+		return client, err
 	}
 
-	// login
-	client, err = login(client, casLogin, lt, ecsID, password)
+	// ログイン
+	client, err = login(client, lt, ecsID, password)
 	if err != nil {
 		return
 	}
@@ -103,16 +153,16 @@ func LoggedInClient(ecsID, password string) (client *http.Client, err error) {
 	return
 }
 
-// get Login Ticket(LT) from response body
+// LTをログインページから取り出す関数
 func getLT(body io.Reader) (lt string, err error) {
 	doc, err := goquery.NewDocumentFromReader(body)
 	if err != nil {
 		return "", err
 	}
 
-	// get the tag in which lt value is written
+	// LTが書かれたタグを取得する
 	ltTag := doc.Find("input[name=\"lt\"]")
-	// get lt value
+	// LTを取得
 	lt, exist := ltTag.Attr("value")
 	if !exist {
 		err = errors.New("LT is not found")
@@ -121,10 +171,9 @@ func getLT(body io.Reader) (lt string, err error) {
 	return
 }
 
-// PandAのログインフォームに情報を送信する関数
-func login(client *http.Client, loginURL, lt, ecsID, password string) (loggedInClient *http.Client, err error) {
+// 京大のCASシステムにログイン情報をPOSTする関数
+func login(client *http.Client, lt, ecsID, password string) (loggedInClient *http.Client, err error) {
 	values := url.Values{}
-	// set form data
 	values = map[string][]string{
 		"_eventId":  {"submit"},
 		"execution": {"e1s1"},
@@ -134,7 +183,7 @@ func login(client *http.Client, loginURL, lt, ecsID, password string) (loggedInC
 		"submit":    {"ログイン"},
 	}
 
-	req, err := http.NewRequest("POST", loginURL, strings.NewReader(values.Encode()))
+	req, err := http.NewRequest("POST", casURL, strings.NewReader(values.Encode()))
 	if err != nil {
 		return client, err
 	}
