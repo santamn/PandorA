@@ -9,7 +9,6 @@ import (
 	"net/http/cookiejar"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/PuerkitoBio/goquery"
 	"golang.org/x/net/publicsuffix"
@@ -24,6 +23,8 @@ const (
 	pandaLogin = pandaDomain + "/sakai-login-tool/container"
 	// URL for getting all assignments
 	pandaAllAssignments = pandaDomain + "/direct/assignment/my.json"
+	// URL for Resources
+	pandaResources = "/direct/content/site"
 )
 
 var (
@@ -31,85 +32,46 @@ var (
 	casLogin = casURL + url.QueryEscape(pandaLogin)
 )
 
-// Assignment 課題
-type Assignment struct {
-	AssignmentID   string
-	AssignmentName string
-	CloseTime      time.Time
-	DueTime        time.Time
-	Instructions   string
-	LessonName     string
-	Status         uint8
-}
-
-// Keitai APIから取得したJSONを平坦化した構造体
-// ここに科目名と提出状況が欲しい
-// あとtime型へ変形したい
-type flattenAssignment struct {
-	assignmentID   string
-	assignmentName string
-	lessonID       string
-	instructions   string
-	dueTime        int64
-	closeTime      int64
-}
-
-// 課題一覧取得APIから科目ID・課題ID・課題名・課題内容・締め切りを取得する
-// 科目IDについては別途一覧を返す
-func fetchAssingmentInfo(client *http.Client) (flatten []flattenAssignment, lessonIDs []string, err error) {
-	// JSONをパースする用の構造体
+// 現在受講中の講義のSITEIDを収集する関数
+func collectSiteID(loggedInClient *http.Client) (siteIDs []string, err error) {
+	// Assignment API からSITEIDを取り出すための構造体
 	type (
-		Assignment struct {
-			Close struct {
-				Time int64 `json:"time"`
-			} `json:"closeTime"`
-			Due struct {
-				Time int64 `json:"time"`
-			} `json:"dueTime"`
-			AssignmentID   string `json:"id"`
-			AssignmentName string `json:"title"`
-			Instructions   string `json:"instructions"`
-			LessonID       string `json:"context"`
+		assignmentCollection struct {
+			Context string `json:"context"`
 		}
 
-		Reciever struct {
-			Coll []Assignment `json:"assignment_collection"`
+		myAssignment struct {
+			Collection []assignmentCollection `json:"assignment_collection"`
 		}
 	)
 
-	resp, err := client.Get(pandaAllAssignments)
+	response, err := loggedInClient.Get(pandaAllAssignments)
 	if err != nil {
-		return nil, nil, err
+		return siteIDs, err
 	}
-	defer resp.Body.Close()
+	defer response.Body.Close()
 
-	bytesBody, _ := ioutil.ReadAll(resp.Body)
-	var reciever Reciever
-	if err := json.Unmarshal(bytesBody, &reciever); err != nil {
-		return nil, nil, err
-	}
-
-	flatten = make([]flattenAssignment, len(reciever.Coll))
-	for i, item := range reciever.Coll {
-		flatten[i].assignmentID = item.AssignmentID
-		flatten[i].assignmentName = item.AssignmentName
-		flatten[i].closeTime = item.Close.Time
-		flatten[i].dueTime = item.Due.Time
-		flatten[i].instructions = item.Instructions
-		flatten[i].lessonID = item.LessonID
+	bytes, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		return siteIDs, err
 	}
 
-	// 重複なく科目IDをスライスにまとめる
-	lessonIDs = make([]string, 0, len(flatten))
-	m := make(map[string]bool)
-	for _, f := range flatten {
-		if !m[f.lessonID] {
-			m[f.lessonID] = true
-			lessonIDs = append(lessonIDs, f.lessonID)
+	var assignments myAssignment
+	if err := json.Unmarshal(bytes, &assignments); err != nil {
+		return siteIDs, err
+	}
+
+	// SITEIDの値を重複なくスライスに格納する
+	m := make(map[string]struct{})
+	siteIDs = make([]string, 0, len(assignments.Collection))
+	for _, col := range assignments.Collection {
+		if _, ok := m[col.Context]; !ok {
+			m[col.Context] = struct{}{}
+			siteIDs = append(siteIDs, col.Context)
 		}
 	}
 
-	return
+	return siteIDs, nil
 }
 
 // LoggedInClient ログイン済みのクライアントを返す
@@ -159,7 +121,7 @@ func getLT(body io.Reader) (lt string, err error) {
 	return
 }
 
-// send data to login form
+// PandAのログインフォームに情報を送信する関数
 func login(client *http.Client, loginURL, lt, ecsID, password string) (loggedInClient *http.Client, err error) {
 	values := url.Values{}
 	// set form data
