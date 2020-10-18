@@ -3,13 +3,13 @@ package data
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/PuerkitoBio/goquery"
 	"golang.org/x/net/publicsuffix"
@@ -23,7 +23,11 @@ const (
 	// URL for getting all assignments
 	pandaAllAssignments = pandaDomain + "/direct/assignment/my.json"
 	// URL for Resources
-	pandaResources = pandaDomain + "/direct/content/site/"
+	pandaResources = pandaDomain + "/direct/content/site/" // SITEID.json を追記する
+	// URL for all sites
+	pandaAllSites = pandaDomain + "/direct/site.json"
+	// PATH for site folder
+	path = "../resource"
 )
 
 var (
@@ -31,19 +35,33 @@ var (
 	casURL = "https://cas.ecs.kyoto-u.ac.jp/cas/login?service=" + url.QueryEscape(pandaLogin)
 )
 
-// DownloadPDF 科目のサイトに登録されたPDFをすべてダウンロードする関数
+// Site PandAのサイト情報を取得するための関数
+type Site struct {
+	Title       string `json:"title"`
+	CreatedDate int64  `json:"createdDate"`
+	ID          string `json:"id"`
+}
+
+// DownloadPDF 科目のサイトに登録されたPDFをすべてダウンロードする関数 -> 全てのリソースのURLを取得して、それらを並列にダウンロードする関数に変更
 func DownloadPDF(loggedInClient *http.Client, siteID string) error {
-	// リソース情報を取得するための構造体
 	type (
-		contentCollection struct {
+		// リソース情報を取得するための構造体
+		resouceInfo struct {
 			Size  int64  `json:"size"`
 			Type  string `json:"type"`
 			Title string `json:"title"`
 			URL   string `json:"url"`
 		}
 
-		resources struct {
-			Collection []contentCollection `json:"content_collection"`
+		wrapper struct {
+			Collection []resouceInfo `json:"content_collection"`
+		}
+
+		// HTTPレスポンスとエラーをどちらも呼び出し側で扱うための構造体
+		result struct {
+			response *http.Response
+			info     resouceInfo
+			err      error
 		}
 	)
 
@@ -54,75 +72,89 @@ func DownloadPDF(loggedInClient *http.Client, siteID string) error {
 	}
 	defer resp.Body.Close()
 
-	var r resources
-	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
+	var w wrapper
+	if err := json.NewDecoder(resp.Body).Decode(&w); err != nil {
 		return err
 	}
 
-	for _, col := range r.Collection {
+	resultChan := make(chan result, len(w.Collection))
+	for _, col := range w.Collection {
 		if col.Type != "application/pdf" {
 			continue
 		}
 
-		resp, err := loggedInClient.Get(col.URL)
-		if err != nil {
-			return err
-		}
-		defer resp.Body.Close()
+		go func(loggedInClient *http.Client, info resouceInfo) {
+			defer close(resultChan)
 
-		fmt.Println("Title", col.Title)
-		file, err := os.Create(col.Title)
-		if err != nil {
-			return err
+			r, e := loggedInClient.Get(info.URL)
+			resultChan <- result{response: r, info: info, err: e}
+		}(loggedInClient, col)
+	}
+
+	for r := range resultChan {
+		defer r.response.Body.Close()
+
+		// 以下、ファイル作成できるモノについてはファイルを作成し、
+		// 失敗したものについてはまとめてエラーを返す
+
+		if r.err != nil {
+			return r.err
 		}
 
-		written, err := io.Copy(file, resp.Body)
+		file, err := os.Create(r.info.Title)
+		if err != nil {
+			return err // ここのエラーをほんとに止めるべきかは考える
+		}
+
+		written, err := io.Copy(file, r.response.Body)
 		if err != nil {
 			return err
 		}
-		if written != col.Size {
-			return errors.New("Invalid bytes")
+		if written != r.info.Size {
+			return errors.New("Written bytes are not equal to file size")
 		}
 	}
+	close(resultChan)
 
 	return nil
 }
 
-// CollectSiteID 現在受講中の講義のSITEIDを収集する関数
-func CollectSiteID(loggedInClient *http.Client) (siteIDs []string, err error) {
-	// Assignment API からSITEIDを取り出すための構造体
-	type (
-		assignmentCollection struct {
-			Context string `json:"context"`
-		}
+// CollectResouceURLs 有効なリソースURLを取得するための関数
+func CollectResouceURLs(loggedInClient *http.Client, sites []Site) (urls []string) {
+	return
+}
 
-		myAssignments struct {
-			Collection []assignmentCollection `json:"assignment_collection"`
-		}
-	)
+// CollectSites 現在受講中の講義のSITEIDを収集する関数
+func CollectSites(loggedInClient *http.Client) (sites []Site, err error) {
+	// サイトの情報を取り出すための構造体
+	type wrapper struct {
+		Sites []Site `json:"site_collection"`
+	}
 
-	resp, err := loggedInClient.Get(pandaAllAssignments)
+	sites = make([]Site, 0)
+
+	resp, err := loggedInClient.Get(pandaAllSites)
 	if err != nil {
-		return siteIDs, err
+		return sites, err
 	}
 	defer resp.Body.Close()
 
-	var a myAssignments
-	if err := json.NewDecoder(resp.Body).Decode(&a); err != nil {
-		return siteIDs, err
+	var w wrapper
+	if err := json.NewDecoder(resp.Body).Decode(&w); err != nil {
+		return sites, err
 	}
 
-	// SITEIDの値を重複なくスライスに格納する
-	m := make(map[string]struct{})
-	siteIDs = make([]string, 0, len(a.Collection))
-	for _, col := range a.Collection {
-		if _, ok := m[col.Context]; !ok {
-			m[col.Context] = struct{}{}
-			siteIDs = append(siteIDs, col.Context)
+	start, end := getSemesterBound()
+	for _, s := range w.Sites {
+		// APIから取得した値はUnixミリ秒なので、Unix秒に変換する
+		t := s.CreatedDate / 1000
+		if start <= t && t <= end {
+			// 今学期に作成された科目の情報を取得する
+			sites = append(sites, s)
 		}
 	}
 
-	return siteIDs, nil
+	return sites, nil
 }
 
 // NewLoggedInClient ログイン済みのクライアントを返す関数
@@ -173,8 +205,7 @@ func getLT(body io.Reader) (lt string, err error) {
 
 // 京大のCASシステムにログイン情報をPOSTする関数
 func login(client *http.Client, lt, ecsID, password string) (loggedInClient *http.Client, err error) {
-	values := url.Values{}
-	values = map[string][]string{
+	values := url.Values{
 		"_eventId":  {"submit"},
 		"execution": {"e1s1"},
 		"lt":        {lt},
@@ -197,3 +228,28 @@ func login(client *http.Client, lt, ecsID, password string) (loggedInClient *htt
 
 	return client, nil
 }
+
+// 今学期の開始時刻と終了時刻をUnixタイムを返す関数
+func getSemesterBound() (start, end int64) {
+	year, month, _ := time.Now().Date()
+	loc, _ := time.LoadLocation("Asia/Tokyo")
+	switch {
+	case 3 <= month && month <= 8:
+		// 前期
+		start = time.Date(year, 3, 1, 0, 0, 0, 0, loc).Unix()
+		end = time.Date(year, 8, 31, 24, 0, 0, 0, loc).Unix()
+	case (9 <= month && month <= 12) || (1 <= month && month <= 2):
+		// 後期
+		start = time.Date(year, 9, 1, 0, 0, 0, 0, loc).Unix()
+		end = time.Date(year+1, 3, 0, 0, 0, 0, 0, loc).Unix()
+	}
+
+	return
+}
+
+// 並列にPandaからリソースをリクエストする関数
+func resourceRequest(loggerInClient *http.Client, url string) {
+
+}
+
+// 並列処理でRequest.Bodyから読み出してファイルに書き込む関数
