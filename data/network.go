@@ -35,32 +35,49 @@ var (
 	casURL = "https://cas.ecs.kyoto-u.ac.jp/cas/login?service=" + url.QueryEscape(pandaLogin)
 )
 
-// Site PandAのサイト情報を取得するための関数
+// Site PandAのサイト情報を取得するための構造体
 type Site struct {
 	Title       string `json:"title"`
 	CreatedDate int64  `json:"createdDate"`
 	ID          string `json:"id"`
 }
 
+// Resource リソースの情報を表す構造体
+type Resource struct {
+	Size         int64  `json:"size"`
+	Type         string `json:"type"`
+	Title        string `json:"title"`
+	URL          string `json:"url"`
+	LessonName   string
+	LastModified int64
+}
+
+// DownloadMap すでにダウンロードした資料についての情報を表すマップ
+// "SiteID1":{
+//     "資料名1":"最終修正時刻1",
+//     "資料名2":"最終修正時刻2",
+//     ...
+// },
+// "SiteID2:{
+//     "資料名1":"最終修正時刻1",
+//     "資料名2":"最終修正時刻2",
+//     ...
+// },
+// という構造になっており、最終修正時刻が最後にダンロードした時から変化したものか、ここに登録されていないリソースのみダウンロードする
+type DownloadMap map[string]map[string]string
+
 // DownloadPDF 科目のサイトに登録されたPDFをすべてダウンロードする関数 -> 全てのリソースのURLを取得して、それらを並列にダウンロードする関数に変更
 func DownloadPDF(loggedInClient *http.Client, siteID string) error {
 	type (
-		// リソース情報を取得するための構造体
-		resouceInfo struct {
-			Size  int64  `json:"size"`
-			Type  string `json:"type"`
-			Title string `json:"title"`
-			URL   string `json:"url"`
-		}
-
+		// APIの返すJSONと形を合わせるための構造体
 		wrapper struct {
-			Collection []resouceInfo `json:"content_collection"`
+			Collection []Resource `json:"content_collection"`
 		}
 
 		// HTTPレスポンスとエラーをどちらも呼び出し側で扱うための構造体
 		result struct {
 			response *http.Response
-			info     resouceInfo
+			info     Resource
 			err      error
 		}
 	)
@@ -120,8 +137,43 @@ func DownloadPDF(loggedInClient *http.Client, siteID string) error {
 }
 
 // CollectResouceURLs 有効なリソースURLを取得するための関数
-func CollectResouceURLs(loggedInClient *http.Client, sites []Site) (urls []string) {
-	return
+func CollectResouceURLs(loggedInClient *http.Client, sites []Site) (resources []Resource, err error) {
+	type (
+		// APIからリソースの情報を取得するための構造体
+		resourceInfo struct {
+			ModifiedDate string `json:"modifiedDate"`
+			Size         int64  `json:"size"`
+			Type         string `json:"type"`
+			Title        string `json:"title"`
+			URL          string `json:"url"`
+		}
+
+		// APIの返すJSONと形を合わせるための構造体
+		wrapper struct {
+			Collection []resourceInfo `json:"content_collection"`
+		}
+	)
+
+	resources = make([]Resource, 0, len(sites))
+
+	for _, site := range sites {
+		url := pandaResources + site.ID + ".json"
+		resp, err := loggedInClient.Get(url)
+		if err != nil {
+			return resources, err
+		}
+		defer resp.Body.Close()
+
+		var w wrapper
+		if err := json.NewDecoder(resp.Body).Decode(&w); err != nil {
+			return resources, err
+		}
+
+		for _, col := range w.Collection {
+
+		}
+
+	}
 }
 
 // CollectSites 現在受講中の講義のSITEIDを収集する関数
