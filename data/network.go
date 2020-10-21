@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
@@ -23,33 +24,35 @@ const (
 	// URL for getting all assignments
 	pandaAllAssignments = pandaDomain + "/direct/assignment/my.json"
 	// URL for Resources
-	pandaResources = pandaDomain + "/direct/content/site/" // SITEID.json を追記する
+	pandaResources = pandaDomain + "/direct/content/site/" // {SITEID}.json を追記する
 	// URL for all sites
 	pandaAllSites = pandaDomain + "/direct/site.json"
-	// PATH for site folder
+	// PATH for resource folder
 	path = "../resource"
 )
 
 var (
 	// URL for Kyoto University's CAS Login System
 	casURL = "https://cas.ecs.kyoto-u.ac.jp/cas/login?service=" + url.QueryEscape(pandaLogin)
+	// Infomation of downloaded resource
+	downloaded = make(DownloadMap, 0)
 )
 
-// Site PandAのサイト情報を取得するための構造体
-type Site struct {
+// site PandAのサイト情報を取得するための構造体
+type site struct {
 	Title       string `json:"title"`
 	CreatedDate int64  `json:"createdDate"`
 	ID          string `json:"id"`
 }
 
-// Resource リソースの情報を表す構造体
-type Resource struct {
+// resource リソースの情報を表す構造体
+type resource struct {
 	Size         int64  `json:"size"`
 	Type         string `json:"type"`
 	Title        string `json:"title"`
 	URL          string `json:"url"`
+	LastModified string `json:"modifiedDate"`
 	LessonName   string
-	LastModified int64
 }
 
 // DownloadMap すでにダウンロードした資料についての情報を表すマップ
@@ -66,95 +69,70 @@ type Resource struct {
 // という構造になっており、最終修正時刻が最後にダンロードした時から変化したものか、ここに登録されていないリソースのみダウンロードする
 type DownloadMap map[string]map[string]string
 
-// DownloadPDF 科目のサイトに登録されたPDFをすべてダウンロードする関数 -> 全てのリソースのURLを取得して、それらを並列にダウンロードする関数に変更
-func DownloadPDF(loggedInClient *http.Client, siteID string) error {
-	type (
-		// APIの返すJSONと形を合わせるための構造体
-		wrapper struct {
-			Collection []Resource `json:"content_collection"`
-		}
-
-		// HTTPレスポンスとエラーをどちらも呼び出し側で扱うための構造体
-		result struct {
-			response *http.Response
-			info     Resource
-			err      error
-		}
-	)
-
-	url := pandaResources + siteID + ".json"
-	resp, err := loggedInClient.Get(url)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	var w wrapper
-	if err := json.NewDecoder(resp.Body).Decode(&w); err != nil {
-		return err
+// downloadPDF 未取得のリソースを並列にダウンロードする関数
+func downloadPDF(loggedInClient *http.Client, resources []resource) (errors []error) {
+	// HTTPレスポンスとエラーをどちらも呼び出し側で扱うための構造体
+	type result struct {
+		response *http.Response
+		info     resource
+		err      error
 	}
 
-	resultChan := make(chan result, len(w.Collection))
-	for _, col := range w.Collection {
-		if col.Type != "application/pdf" {
+	errors = make([]error, 0)
+
+	var wg sync.WaitGroup
+	resultChan := make(chan result, len(resources))
+
+	for _, r := range resources {
+		if r.Type != "application/pdf" {
 			continue
 		}
 
-		go func(loggedInClient *http.Client, info resouceInfo) {
-			defer close(resultChan)
-
-			r, e := loggedInClient.Get(info.URL)
-			resultChan <- result{response: r, info: info, err: e}
-		}(loggedInClient, col)
+		wg.Add(1)
+		go func(c *http.Client, info resource) {
+			defer wg.Done()
+			// リソースをダウンロード
+			resp, err := c.Get(info.URL)
+			resultChan <- result{response: resp, info: info, err: err}
+		}(loggedInClient, r)
 	}
 
-	for r := range resultChan {
-		defer r.response.Body.Close()
+	// 送信するものがなくなったらチャネルをクローズする
+	go func() {
+		wg.Wait()
+		close(resultChan)
+	}()
 
-		// 以下、ファイル作成できるモノについてはファイルを作成し、
-		// 失敗したものについてはまとめてエラーを返す
+	for result := range resultChan {
+		defer result.response.Body.Close()
 
-		if r.err != nil {
-			return r.err
+		if result.err != nil {
+			errors = append(errors, result.err)
+			continue
 		}
 
-		file, err := os.Create(r.info.Title)
+		file, err := os.Create(result.info.LessonName + "/" + result.info.Title) // TODO:リソースを保存する場所を選べるよういい感じにする
 		if err != nil {
-			return err // ここのエラーをほんとに止めるべきかは考える
+			errors = append(errors, err)
+			continue
 		}
 
-		written, err := io.Copy(file, r.response.Body)
-		if err != nil {
-			return err
-		}
-		if written != r.info.Size {
-			return errors.New("Written bytes are not equal to file size")
+		if _, err := io.Copy(file, result.response.Body); err != nil {
+			errors = append(errors, err)
 		}
 	}
-	close(resultChan)
 
-	return nil
+	return
 }
 
-// CollectResouceURLs 有効なリソースURLを取得するための関数
-func CollectResouceURLs(loggedInClient *http.Client, sites []Site) (resources []Resource, err error) {
-	type (
-		// APIからリソースの情報を取得するための構造体
-		resourceInfo struct {
-			ModifiedDate string `json:"modifiedDate"`
-			Size         int64  `json:"size"`
-			Type         string `json:"type"`
-			Title        string `json:"title"`
-			URL          string `json:"url"`
-		}
+// collectUnacquiredResouceInfo 未取得のリソースの情報を取得
+func collectUnacquiredResouceInfo(loggedInClient *http.Client, sites []site, downloaded DownloadMap) (resources []resource, err error) {
+	// APIの返すJSONと形を合わせるための構造体
+	type wrapper struct {
+		Collection []resource `json:"content_collection"`
+	}
 
-		// APIの返すJSONと形を合わせるための構造体
-		wrapper struct {
-			Collection []resourceInfo `json:"content_collection"`
-		}
-	)
-
-	resources = make([]Resource, 0, len(sites))
+	resources = make([]resource, 0, len(sites))
 
 	for _, site := range sites {
 		url := pandaResources + site.ID + ".json"
@@ -170,20 +148,45 @@ func CollectResouceURLs(loggedInClient *http.Client, sites []Site) (resources []
 		}
 
 		for _, col := range w.Collection {
+			// リソース情報に講義名を追加
+			col.LessonName = site.Title
 
+			// ダウンロードしていない資料もしくは最終編集時刻が変更されているもののみダウンロード候補へ追加する
+			resourceMap, ok := downloaded[site.ID]
+			if !ok { // サイトIDがダウンロードマップに存在しない場合(= その講義にはじめて資料が追加された)
+				resources = append(resources, col)
+
+				// ダウンロードマップを更新
+				downloaded[site.ID] = map[string]string{
+					col.Title: col.LastModified,
+				}
+				continue
+			}
+
+			if lastModified, ok := resourceMap[col.Title]; !ok || lastModified != col.LastModified {
+				// 資料名がダウンロードマップに登録されていない場合(= いままでにダウンロードされたことがない)
+				// もしくは最終編集時刻が過去のものと異なっている場合
+
+				resources = append(resources, col)
+				// ダウンロードマップを更新
+				downloaded[site.ID] = map[string]string{
+					col.Title: col.LastModified,
+				}
+				continue
+			}
 		}
-
 	}
+	return
 }
 
-// CollectSites 現在受講中の講義のSITEIDを収集する関数
-func CollectSites(loggedInClient *http.Client) (sites []Site, err error) {
+// collectSites 現在受講中の講義のSITEIDを収集する関数
+func collectSites(loggedInClient *http.Client) (sites []site, err error) {
 	// サイトの情報を取り出すための構造体
 	type wrapper struct {
-		Sites []Site `json:"site_collection"`
+		Sites []site `json:"site_collection"`
 	}
 
-	sites = make([]Site, 0)
+	sites = make([]site, 0)
 
 	resp, err := loggedInClient.Get(pandaAllSites)
 	if err != nil {
@@ -197,6 +200,7 @@ func CollectSites(loggedInClient *http.Client) (sites []Site, err error) {
 	}
 
 	start, end := getSemesterBound()
+
 	for _, s := range w.Sites {
 		// APIから取得した値はUnixミリ秒なので、Unix秒に変換する
 		t := s.CreatedDate / 1000
@@ -285,6 +289,7 @@ func login(client *http.Client, lt, ecsID, password string) (loggedInClient *htt
 func getSemesterBound() (start, end int64) {
 	year, month, _ := time.Now().Date()
 	loc, _ := time.LoadLocation("Asia/Tokyo")
+
 	switch {
 	case 3 <= month && month <= 8:
 		// 前期
@@ -298,10 +303,3 @@ func getSemesterBound() (start, end int64) {
 
 	return
 }
-
-// 並列にPandaからリソースをリクエストする関数
-func resourceRequest(loggerInClient *http.Client, url string) {
-
-}
-
-// 並列処理でRequest.Bodyから読み出してファイルに書き込む関数

@@ -1,10 +1,5 @@
 package main
 
-import (
-	"fmt"
-	"pandora/data"
-)
-
 func main() {
 	// pandora := app.New()
 	// pandora.Settings().SetTheme(theme.DarkTheme())
@@ -16,12 +11,4 @@ func main() {
 	// window.SetContent(object)
 	// window.ShowAndRun()
 
-	client, err := data.NewLoggedInClient("a0180935", "SCP-8900-ex")
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	if err := data.DownloadPDF(client, "2020-888-H730-002"); err != nil {
-		fmt.Println(err)
-	}
 }
