@@ -47,14 +47,3 @@ func ReadAccountInfo() (ecsID, password string, err error) {
 
 	return
 }
-
-// ASCIIコードで33(!)-126(~)をrotする
-func rot47(target []byte) (result []byte) {
-	result = make([]byte, len(target))
-
-	for i, t := range target {
-		result[i] = (t-33+47)%94 + 33
-	}
-
-	return
-}

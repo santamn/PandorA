@@ -10,7 +10,6 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/PuerkitoBio/goquery"
 	"golang.org/x/net/publicsuffix"
@@ -21,14 +20,12 @@ const (
 	pandaDomain = "https://panda.ecs.kyoto-u.ac.jp"
 	// URL for PandA log in page
 	pandaLogin = pandaDomain + "/sakai-login-tool/container"
-	// URL for getting all assignments
-	pandaAllAssignments = pandaDomain + "/direct/assignment/my.json"
-	// URL for Resources
-	pandaResources = pandaDomain + "/direct/content/site/" // {SITEID}.json を追記する
 	// URL for all sites
 	pandaAllSites = pandaDomain + "/direct/site.json"
+	// URL for Resources
+	pandaResources = pandaDomain + "/direct/content/site/" // {SITEID}.json を追記する
 	// PATH for resource folder
-	path = "../resource"
+	resourcePath = "~/Desktop/PandorA"
 )
 
 var (
@@ -69,8 +66,8 @@ type resource struct {
 // という構造になっており、最終修正時刻が最後にダンロードした時から変化したものか、ここに登録されていないリソースのみダウンロードする
 type DownloadMap map[string]map[string]string
 
-// downloadPDF 未取得のリソースを並列にダウンロードする関数
-func downloadPDF(loggedInClient *http.Client, resources []resource) (errors []error) {
+// paraDownloadPDF 未取得のリソースを並列にダウンロードする関数
+func paraDownloadPDF(loggedInClient *http.Client, resources []resource) (errors []error) {
 	// HTTPレスポンスとエラーをどちらも呼び出し側で扱うための構造体
 	type result struct {
 		response *http.Response
@@ -83,18 +80,18 @@ func downloadPDF(loggedInClient *http.Client, resources []resource) (errors []er
 	var wg sync.WaitGroup
 	resultChan := make(chan result, len(resources))
 
-	for _, r := range resources {
-		if r.Type != "application/pdf" {
+	for _, res := range resources {
+		if res.Type != "application/pdf" {
 			continue
 		}
 
 		wg.Add(1)
-		go func(c *http.Client, info resource) {
+		go func(lic *http.Client, info resource) {
 			defer wg.Done()
 			// リソースをダウンロード
-			resp, err := c.Get(info.URL)
+			resp, err := lic.Get(info.URL)
 			resultChan <- result{response: resp, info: info, err: err}
-		}(loggedInClient, r)
+		}(loggedInClient, res)
 	}
 
 	// 送信するものがなくなったらチャネルをクローズする
@@ -121,7 +118,6 @@ func downloadPDF(loggedInClient *http.Client, resources []resource) (errors []er
 			errors = append(errors, err)
 		}
 	}
-
 	return
 }
 
@@ -147,31 +143,27 @@ func collectUnacquiredResouceInfo(loggedInClient *http.Client, sites []site, dow
 			return resources, err
 		}
 
-		for _, col := range w.Collection {
+		for _, res := range w.Collection {
 			// リソース情報に講義名を追加
-			col.LessonName = site.Title
+			res.LessonName = site.Title
 
 			// ダウンロードしていない資料もしくは最終編集時刻が変更されているもののみダウンロード候補へ追加する
 			resourceMap, ok := downloaded[site.ID]
 			if !ok { // サイトIDがダウンロードマップに存在しない場合(= その講義にはじめて資料が追加された)
-				resources = append(resources, col)
+				resources = append(resources, res)
 
 				// ダウンロードマップを更新
-				downloaded[site.ID] = map[string]string{
-					col.Title: col.LastModified,
-				}
+				downloaded[site.ID] = map[string]string{res.Title: res.LastModified}
 				continue
 			}
 
-			if lastModified, ok := resourceMap[col.Title]; !ok || lastModified != col.LastModified {
+			if lastModified, ok := resourceMap[res.Title]; !ok || lastModified != res.LastModified {
 				// 資料名がダウンロードマップに登録されていない場合(= いままでにダウンロードされたことがない)
 				// もしくは最終編集時刻が過去のものと異なっている場合
 
-				resources = append(resources, col)
+				resources = append(resources, res)
 				// ダウンロードマップを更新
-				downloaded[site.ID] = map[string]string{
-					col.Title: col.LastModified,
-				}
+				downloaded[site.ID] = map[string]string{res.Title: res.LastModified}
 				continue
 			}
 		}
@@ -213,8 +205,8 @@ func collectSites(loggedInClient *http.Client) (sites []site, err error) {
 	return sites, nil
 }
 
-// NewLoggedInClient ログイン済みのクライアントを返す関数
-func NewLoggedInClient(ecsID, password string) (client *http.Client, err error) {
+// newLoggedInClient ログイン済みのクライアントを返す関数
+func newLoggedInClient(ecsID, password string) (client *http.Client, err error) {
 	jar, _ := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
 	client = &http.Client{Jar: jar}
 
@@ -237,7 +229,6 @@ func NewLoggedInClient(ecsID, password string) (client *http.Client, err error) 
 	if err != nil {
 		return
 	}
-
 	return
 }
 
@@ -255,7 +246,6 @@ func getLT(body io.Reader) (lt string, err error) {
 	if !exist {
 		err = errors.New("LT is not found")
 	}
-
 	return
 }
 
@@ -283,23 +273,4 @@ func login(client *http.Client, lt, ecsID, password string) (loggedInClient *htt
 	}
 
 	return client, nil
-}
-
-// 今学期の開始時刻と終了時刻をUnixタイムを返す関数
-func getSemesterBound() (start, end int64) {
-	year, month, _ := time.Now().Date()
-	loc, _ := time.LoadLocation("Asia/Tokyo")
-
-	switch {
-	case 3 <= month && month <= 8:
-		// 前期
-		start = time.Date(year, 3, 1, 0, 0, 0, 0, loc).Unix()
-		end = time.Date(year, 8, 31, 24, 0, 0, 0, loc).Unix()
-	case (9 <= month && month <= 12) || (1 <= month && month <= 2):
-		// 後期
-		start = time.Date(year, 9, 1, 0, 0, 0, 0, loc).Unix()
-		end = time.Date(year+1, 3, 0, 0, 0, 0, 0, loc).Unix()
-	}
-
-	return
 }
