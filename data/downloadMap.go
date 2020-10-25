@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 )
 
-// DownloadMap すでにダウンロードした資料についての情報を表すマップ
+// downloadMap すでにダウンロードした資料についての情報を表すマップ
 //
 // 	"SiteID1":{
 // 	　"資料名1":"最終修正時刻1",
@@ -21,11 +21,11 @@ import (
 //	},
 //
 // という構造になっており、最終修正時刻が最後にダンロードした時から変化したものか、ここに登録されていないリソースのみダウンロードする
-type DownloadMap map[string]map[string]string
+type downloadMap map[string]map[string]string
 
-// ReadDownloadMap ダウンロードマップをファイルから読み出す
-func ReadDownloadMap() DownloadMap {
-	dmap := make(DownloadMap)
+// readDownloadMap ダウンロードマップをファイルから読み出す
+func readDownloadMap() downloadMap {
+	dmap := make(downloadMap)
 	// あらかじめ戻り先を絶対パスに展開しておく
 	prev, err := filepath.Abs(".")
 	if err != nil {
@@ -37,7 +37,7 @@ func ReadDownloadMap() DownloadMap {
 		return dmap
 	}
 
-	mapFile, err := os.Open(".dmap")
+	mapFile, err := os.Open("dmap")
 	if err != nil {
 		// ファイルが開けない場合は空のマップを返す
 		return dmap
@@ -48,8 +48,8 @@ func ReadDownloadMap() DownloadMap {
 	return dmap
 }
 
-// WriteFile ダウンロードマップをファイルに書き込む
-func (dmap DownloadMap) WriteFile() error {
+// writeFile ダウンロードマップをファイルに書き込む
+func (dmap downloadMap) writeFile() error {
 	// あらかじめ戻り先を絶対パスに展開しておく
 	prev, err := filepath.Abs(".")
 	if err != nil {
@@ -61,7 +61,7 @@ func (dmap DownloadMap) WriteFile() error {
 		return err
 	}
 
-	mapFile, err := os.OpenFile(".dmap", os.O_RDWR|os.O_CREATE, 0766)
+	mapFile, err := os.OpenFile("dmap", os.O_RDWR|os.O_CREATE, 0766)
 	if err != nil {
 		return err
 	}

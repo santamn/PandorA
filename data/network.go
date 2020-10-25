@@ -3,11 +3,11 @@ package data
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
-	"os"
 	"strings"
 	"sync"
 
@@ -32,7 +32,7 @@ var (
 	// URL for Kyoto University's CAS Login System
 	casURL = "https://cas.ecs.kyoto-u.ac.jp/cas/login?service=" + url.QueryEscape(pandaLogin)
 	// Infomation of downloaded resource
-	downloaded = make(DownloadMap, 0)
+	downloaded = make(downloadMap, 0)
 )
 
 // site PandAのサイト情報を取得するための構造体
@@ -50,6 +50,28 @@ type resource struct {
 	URL          string `json:"url"`
 	LastModified string `json:"modifiedDate"`
 	LessonName   string
+}
+
+// Download 資料をダウンロード
+func Download(ecsID, password string) {
+	lic, err := newLoggedInClient(ecsID, password)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	sites, _ := collectSites(lic)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	resources, err := collectUnacquiredResouceInfo(lic, sites)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	if errors := paraDownloadPDF(lic, resources); len(errors) > 0 {
+		fmt.Println(errors)
+	}
 }
 
 // paraDownloadPDF 未取得のリソースを並列にダウンロードする関数
@@ -94,7 +116,7 @@ func paraDownloadPDF(loggedInClient *http.Client, resources []resource) (errors 
 			continue
 		}
 
-		file, err := os.Create(result.info.LessonName + "/" + result.info.Title) // TODO:リソースを保存する場所を選べるよういい感じにする
+		file, err := fetchFile(result.info.Title, result.info.LessonName)
 		if err != nil {
 			errors = append(errors, err)
 			continue
@@ -115,7 +137,7 @@ func collectUnacquiredResouceInfo(loggedInClient *http.Client, sites []site) (re
 	}
 
 	resources = make([]resource, 0, len(sites))
-	dmap := ReadDownloadMap()
+	dmap := readDownloadMap()
 
 	for _, site := range sites {
 		url := pandaResources + site.ID + ".json"
@@ -150,13 +172,13 @@ func collectUnacquiredResouceInfo(loggedInClient *http.Client, sites []site) (re
 
 				resources = append(resources, res)
 				// ダウンロードマップを更新
-				dmap[site.ID] = map[string]string{res.Title: res.LastModified}
+				dmap[site.ID][res.Title] = res.LastModified
 				continue
 			}
 		}
 	}
 
-	if err := dmap.WriteFile(); err != nil {
+	if err := dmap.writeFile(); err != nil {
 		return resources, err
 	}
 
