@@ -36,7 +36,23 @@ func getSemesterBound() (start, end int64) {
 	return
 }
 
-// デスクトップにファイルを作成する関数
+// PandorAフォルダへ移動する
+func cdPandorA() error {
+	if err := os.Chdir(os.Getenv("HOME") + "/Desktop"); err != nil {
+		return err
+	}
+
+	if info, err := os.Stat("PandorA"); os.IsNotExist(err) || !info.IsDir() {
+		// PandorAフォルダが存在しない場合は作成する
+		if err := os.Mkdir("PandorA", 0766); err != nil {
+			return err
+		}
+	}
+
+	return os.Chdir("PandorA")
+}
+
+// PandorAフォルダにファイルを作成する関数
 func fetchFile(filename, foldername string) (file *os.File, err error) {
 	// あらかじめ戻り先を絶対パスに展開しておく
 	prev, err := filepath.Abs(".")
@@ -45,18 +61,7 @@ func fetchFile(filename, foldername string) (file *os.File, err error) {
 	}
 	defer os.Chdir(prev)
 
-	if err := os.Chdir(os.Getenv("HOME") + "/Desktop"); err != nil {
-		return file, err
-	}
-
-	if info, err := os.Stat("PandorA"); os.IsNotExist(err) || !info.IsDir() {
-		// PandorAフォルダが存在しない場合は作成する
-		if err := os.Mkdir("PandorA", 0766); err != nil {
-			return file, err
-		}
-	}
-
-	if err := os.Chdir("PandorA"); err != nil {
+	if err := cdPandorA(); err != nil {
 		return file, err
 	}
 

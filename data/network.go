@@ -52,20 +52,6 @@ type resource struct {
 	LessonName   string
 }
 
-// DownloadMap すでにダウンロードした資料についての情報を表すマップ
-// "SiteID1":{
-//     "資料名1":"最終修正時刻1",
-//     "資料名2":"最終修正時刻2",
-//     ...
-// },
-// "SiteID2:{
-//     "資料名1":"最終修正時刻1",
-//     "資料名2":"最終修正時刻2",
-//     ...
-// },
-// という構造になっており、最終修正時刻が最後にダンロードした時から変化したものか、ここに登録されていないリソースのみダウンロードする
-type DownloadMap map[string]map[string]string
-
 // paraDownloadPDF 未取得のリソースを並列にダウンロードする関数
 func paraDownloadPDF(loggedInClient *http.Client, resources []resource) (errors []error) {
 	// HTTPレスポンスとエラーをどちらも呼び出し側で扱うための構造体
@@ -122,13 +108,14 @@ func paraDownloadPDF(loggedInClient *http.Client, resources []resource) (errors 
 }
 
 // collectUnacquiredResouceInfo 未取得のリソースの情報を取得
-func collectUnacquiredResouceInfo(loggedInClient *http.Client, sites []site, downloaded DownloadMap) (resources []resource, err error) {
+func collectUnacquiredResouceInfo(loggedInClient *http.Client, sites []site) (resources []resource, err error) {
 	// APIの返すJSONと形を合わせるための構造体
 	type wrapper struct {
 		Collection []resource `json:"content_collection"`
 	}
 
 	resources = make([]resource, 0, len(sites))
+	dmap := ReadDownloadMap()
 
 	for _, site := range sites {
 		url := pandaResources + site.ID + ".json"
@@ -148,12 +135,12 @@ func collectUnacquiredResouceInfo(loggedInClient *http.Client, sites []site, dow
 			res.LessonName = site.Title
 
 			// ダウンロードしていない資料もしくは最終編集時刻が変更されているもののみダウンロード候補へ追加する
-			resourceMap, ok := downloaded[site.ID]
+			resourceMap, ok := dmap[site.ID]
 			if !ok { // サイトIDがダウンロードマップに存在しない場合(= その講義にはじめて資料が追加された)
 				resources = append(resources, res)
 
 				// ダウンロードマップを更新
-				downloaded[site.ID] = map[string]string{res.Title: res.LastModified}
+				dmap[site.ID] = map[string]string{res.Title: res.LastModified}
 				continue
 			}
 
@@ -163,11 +150,16 @@ func collectUnacquiredResouceInfo(loggedInClient *http.Client, sites []site, dow
 
 				resources = append(resources, res)
 				// ダウンロードマップを更新
-				downloaded[site.ID] = map[string]string{res.Title: res.LastModified}
+				dmap[site.ID] = map[string]string{res.Title: res.LastModified}
 				continue
 			}
 		}
 	}
+
+	if err := dmap.WriteFile(); err != nil {
+		return resources, err
+	}
+
 	return
 }
 
