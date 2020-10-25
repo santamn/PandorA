@@ -24,6 +24,8 @@ const (
 	pandaAllSites = pandaDomain + "/direct/site.json"
 	// URL for Resources
 	pandaResources = pandaDomain + "/direct/content/site/" // {SITEID}.json を追記する
+	// URL for Resource Acception
+	pandaAcception = pandaDomain + "/access/accept?"
 	// PATH for resource folder
 	resourcePath = "~/Desktop/PandorA"
 )
@@ -48,7 +50,7 @@ type resource struct {
 	Title        string `json:"title"`
 	URL          string `json:"url"`
 	LastModified string `json:"modifiedDate"`
-	LessonName   string
+	site         site
 }
 
 // Download 資料をダウンロード
@@ -95,9 +97,26 @@ func paraDownloadPDF(loggedInClient *http.Client, resources []resource) (errors 
 		wg.Add(1)
 		go func(lic *http.Client, info resource) {
 			defer wg.Done()
+			// 自動リダイレクトをOFFにする
+			lic.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
+			}
+
 			// リソースをダウンロード
 			resp, err := lic.Get(info.URL)
-			resultChan <- result{response: resp, info: info, err: err}
+			if resp.Status == http.StatusText(302) {
+				// 資料に著作権制限がついているために確認ページヘと飛ばされてしまう場合
+				// 自動リダイレクトをONに戻す
+				lic.CheckRedirect = nil
+
+				// 資料のダウンロードの許可をくれるパスへGETし、そのままリダイレクト先で資料を取得
+				path := "/content/group/" + info.site.ID + info.Title
+				query := "ref=" + path + "&" + "url=" + path
+
+				url := pandaAcception + url.QueryEscape(query)
+				resp, err = lic.Get(url)
+				resultChan <- result{response: resp, info: info, err: err}
+			}
 		}(loggedInClient, res)
 	}
 
@@ -115,7 +134,7 @@ func paraDownloadPDF(loggedInClient *http.Client, resources []resource) (errors 
 			continue
 		}
 
-		file, err := fetchFile(result.info.Title, result.info.LessonName)
+		file, err := fetchFile(result.info.Title, result.info.site.Title)
 		if err != nil {
 			errors = append(errors, err)
 			continue
@@ -153,7 +172,7 @@ func collectUnacquiredResouceInfo(loggedInClient *http.Client, sites []site) (re
 
 		for _, res := range w.Collection {
 			// リソース情報に講義名を追加
-			res.LessonName = site.Title
+			res.site = site
 
 			// ダウンロードしていない資料もしくは最終編集時刻が変更されているもののみダウンロード候補へ追加する
 			resourceMap, ok := dmap[site.ID]
