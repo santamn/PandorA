@@ -58,7 +58,7 @@ func Download(ecsID, password string) {
 		fmt.Println(err)
 	}
 
-	sites, _ := collectSites(lic)
+	sites, err := collectSites(lic)
 	if err != nil {
 		fmt.Println(err)
 	}
