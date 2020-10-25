@@ -37,9 +37,8 @@ var (
 
 // site PandAのサイト情報を取得するための構造体
 type site struct {
-	Title       string `json:"title"`
-	CreatedDate int64  `json:"createdDate"`
-	ID          string `json:"id"`
+	Title string `json:"title"`
+	ID    string `json:"id"`
 }
 
 // resource リソースの情報を表す構造体
@@ -136,9 +135,9 @@ func collectUnacquiredResouceInfo(loggedInClient *http.Client, sites []site) (re
 		Collection []resource `json:"content_collection"`
 	}
 
-	resources = make([]resource, 0, len(sites))
 	dmap := readDownloadMap()
 
+	resources = make([]resource, 0, len(sites))
 	for _, site := range sites {
 		url := pandaResources + site.ID + ".json"
 		resp, err := loggedInClient.Get(url)
@@ -205,13 +204,11 @@ func collectSites(loggedInClient *http.Client) (sites []site, err error) {
 		return sites, err
 	}
 
-	start, end := getSemesterBound()
+	semesterText := makeSemesterDescription()
 
 	for _, s := range w.Sites {
-		// APIから取得した値はUnixミリ秒なので、Unix秒に変換する
-		t := s.CreatedDate / 1000
-		if start <= t && t <= end {
-			// 今学期に作成された科目の情報を取得する
+		if strings.Contains(s.Title, semesterText) {
+			// 科目名に含まれる"2020前期"の部分で科目が現在受講中かどうかを判定する
 			sites = append(sites, s)
 		}
 	}

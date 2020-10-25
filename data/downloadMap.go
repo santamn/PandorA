@@ -37,7 +37,7 @@ func readDownloadMap() downloadMap {
 		return dmap
 	}
 
-	mapFile, err := os.Open("dmap")
+	mapFile, err := os.Open("dmap.dat")
 	if err != nil {
 		// ファイルが開けない場合は空のマップを返す
 		return dmap
@@ -61,7 +61,7 @@ func (dmap downloadMap) writeFile() error {
 		return err
 	}
 
-	mapFile, err := os.OpenFile("dmap", os.O_RDWR|os.O_CREATE, 0766)
+	mapFile, err := os.OpenFile("dmap.dat", os.O_RDWR|os.O_CREATE, 0766)
 	if err != nil {
 		return err
 	}

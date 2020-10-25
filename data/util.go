@@ -1,6 +1,7 @@
 package data
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -17,20 +18,17 @@ func rot47(target []byte) (result []byte) {
 	return
 }
 
-// 今学期の開始時刻と終了時刻をUnixタイムを返す関数
-func getSemesterBound() (start, end int64) {
+// 科目名に含まれる "2020前期" の部分を作成する
+func makeSemesterDescription() (text string) {
 	year, month, _ := time.Now().Date()
-	loc, _ := time.LoadLocation("Asia/Tokyo")
 
 	switch {
 	case 3 <= month && month <= 8:
 		// 前期
-		start = time.Date(year, 3, 1, 0, 0, 0, 0, loc).Unix()
-		end = time.Date(year, 8, 31, 24, 0, 0, 0, loc).Unix()
-	case (9 <= month && month <= 12) || (1 <= month && month <= 2):
+		text = fmt.Sprint(year) + "前期"
+	default:
 		// 後期
-		start = time.Date(year, 9, 1, 0, 0, 0, 0, loc).Unix()
-		end = time.Date(year+1, 3, 0, 0, 0, 0, 0, loc).Unix()
+		text = fmt.Sprint(year) + "後期"
 	}
 
 	return
