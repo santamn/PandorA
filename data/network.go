@@ -110,7 +110,7 @@ func paraDownloadPDF(loggedInClient *http.Client, resources []resource) (errors 
 				lic.CheckRedirect = nil
 
 				// 資料のダウンロードの許可をくれるパスへGETし、そのままリダイレクト先で資料を取得
-				path := "/content/group/" + info.site.ID + info.Title
+				path := "/content/group/" + info.site.ID + "/" + info.Title
 				query := "ref=" + path + "&" + "url=" + path
 
 				url := pandaAcception + url.QueryEscape(query)
