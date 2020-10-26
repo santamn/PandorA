@@ -109,7 +109,7 @@ func paraDownloadPDF(loggedInClient *http.Client, resources []resource) (errors 
 				// 自動リダイレクトをONに戻す
 				lic.CheckRedirect = nil
 
-				// 資料のダウンロードの許可をくれるパスへGETし、そのままリダイレクト先で資料を取得
+				// 資料のダウンロードの許可をくれるパスへクエリを投げ、そのままリダイレクト先で資料を取得
 				path := "/content/group/" + info.site.ID + "/" + info.Title
 				query := "ref=" + path + "&" + "url=" + path
 
@@ -140,7 +140,7 @@ func paraDownloadPDF(loggedInClient *http.Client, resources []resource) (errors 
 			continue
 		}
 
-		if _, err := io.Copy(file, result.response.Body); err != nil {
+		if _, err := io.Copy(file, result.response.Body); err != nil { // ここを並列化するかどうかを考える
 			errors = append(errors, err)
 		}
 	}
