@@ -50,7 +50,7 @@ type resource struct {
 	Title        string `json:"title"`
 	URL          string `json:"url"`
 	LastModified string `json:"modifiedDate"`
-	site         site
+	lessonSite   site
 }
 
 // Download 資料をダウンロード
@@ -110,7 +110,7 @@ func paraDownloadPDF(loggedInClient *http.Client, resources []resource) (errors 
 				lic.CheckRedirect = nil
 
 				// 資料のダウンロードの許可をくれるパスへクエリを投げ、そのままリダイレクト先で資料を取得
-				path := "/content/group/" + info.site.ID + "/" + info.Title
+				path := "/content/group/" + info.lessonSite.ID + "/" + info.Title
 				query := "ref=" + path + "&" + "url=" + path
 
 				url := pandaAcception + url.QueryEscape(query)
@@ -134,7 +134,7 @@ func paraDownloadPDF(loggedInClient *http.Client, resources []resource) (errors 
 			continue
 		}
 
-		file, err := fetchFile(result.info.Title, result.info.site.Title)
+		file, err := fetchFile(result.info.Title, result.info.lessonSite.Title)
 		if err != nil {
 			errors = append(errors, err)
 			continue
@@ -172,7 +172,7 @@ func collectUnacquiredResouceInfo(loggedInClient *http.Client, sites []site) (re
 
 		for _, res := range w.Collection {
 			// リソース情報に講義名を追加
-			res.site = site
+			res.lessonSite = site
 
 			// ダウンロードしていない資料もしくは最終編集時刻が変更されているもののみダウンロード候補へ追加する
 			resourceMap, ok := dmap[site.ID]
