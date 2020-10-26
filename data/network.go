@@ -107,7 +107,7 @@ func paraDownloadPDF(loggedInClient *http.Client, resources []resource) (errors 
 			if resp.StatusCode == 302 {
 				// 資料のダウンロードの許可をくれるパスへクエリを投げる
 				path := "/content/group/" + info.lessonSite.ID + "/" + url.QueryEscape(info.Title)
-				query := "ref=" + path + "&" + "url=" + path
+				query := "ref=" + path + "&url=" + path
 				url := pandaAcception + query
 
 				// 資料のダウンロードの許可をもらう
@@ -138,13 +138,13 @@ func paraDownloadPDF(loggedInClient *http.Client, resources []resource) (errors 
 	for result := range resultChan {
 		defer result.response.Body.Close()
 
-		// 転送処理の結果のレスポンスは捨てる
-		if result.response == nil {
+		if result.err != nil {
+			errors = append(errors, result.err)
 			continue
 		}
 
-		if result.err != nil {
-			errors = append(errors, result.err)
+		// 転送処理の結果のレスポンスは捨てる
+		if result.response == nil {
 			continue
 		}
 
