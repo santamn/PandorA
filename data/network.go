@@ -89,6 +89,11 @@ func paraDownloadPDF(loggedInClient *http.Client, resources []resource) (errors 
 	var wg sync.WaitGroup
 	resultChan := make(chan result, len(resources))
 
+	// 自動リダイレクトをOFFにする
+	loggedInClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+
 	for _, res := range resources {
 		if res.Type != "application/pdf" {
 			continue
@@ -97,10 +102,6 @@ func paraDownloadPDF(loggedInClient *http.Client, resources []resource) (errors 
 		wg.Add(1)
 		go func(lic *http.Client, info resource) {
 			defer wg.Done()
-			// 自動リダイレクトをOFFにする
-			lic.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse
-			}
 
 			// リソースをダウンロード
 			resp, err := lic.Get(info.URL)
