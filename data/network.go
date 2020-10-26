@@ -104,17 +104,24 @@ func paraDownloadPDF(loggedInClient *http.Client, resources []resource) (errors 
 
 			// リソースをダウンロード
 			resp, err := lic.Get(info.URL)
-			if resp.Status == http.StatusText(302) {
-				// 資料に著作権制限がついているために確認ページヘと飛ばされてしまう場合
-				// 自動リダイレクトをONに戻す
-				lic.CheckRedirect = nil
-
-				// 資料のダウンロードの許可をくれるパスへクエリを投げ、そのままリダイレクト先で資料を取得
-				path := "/content/group/" + info.lessonSite.ID + "/" + info.Title
+			if resp.StatusCode == 302 {
+				// 資料のダウンロードの許可をくれるパスへクエリを投げる
+				path := "/content/group/" + info.lessonSite.ID + "/" + url.QueryEscape(info.Title)
 				query := "ref=" + path + "&" + "url=" + path
+				url := pandaAcception + query
 
-				url := pandaAcception + url.QueryEscape(query)
-				resp, err = lic.Get(url)
+				// 資料のダウンロードの許可をもらう
+				permission, err := lic.Get(url)
+				if err != nil {
+					resultChan <- result{response: nil, info: info, err: err}
+				}
+				defer permission.Body.Close()
+
+				// 実際の資料をダウンロードする
+				resp, err := lic.Get(info.URL)
+				resultChan <- result{response: resp, info: info, err: err}
+			} else {
+				// 通常のダウンロードができた場合
 				resultChan <- result{response: resp, info: info, err: err}
 			}
 		}(loggedInClient, res)
@@ -124,10 +131,17 @@ func paraDownloadPDF(loggedInClient *http.Client, resources []resource) (errors 
 	go func() {
 		wg.Wait()
 		close(resultChan)
+		// 自動リダイレクトをONに戻す
+		loggedInClient.CheckRedirect = nil
 	}()
 
 	for result := range resultChan {
 		defer result.response.Body.Close()
+
+		// 転送処理の結果のレスポンスは捨てる
+		if result.response == nil {
+			continue
+		}
 
 		if result.err != nil {
 			errors = append(errors, result.err)
