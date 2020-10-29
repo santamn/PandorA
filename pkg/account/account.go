@@ -1,9 +1,9 @@
 package account
 
 import (
+	"bufio"
 	"encoding/binary"
 	"errors"
-	"io/ioutil"
 	"pandora/pkg/dir"
 	"strings"
 )
@@ -33,10 +33,13 @@ func WriteAccountInfo(ecsID, password string) error {
 func ReadAccountInfo() (ecsID, password string, err error) {
 	content := make([]byte, 0, 32)
 
-	content, err = ioutil.ReadFile(accountFile)
+	file, err := dir.FetchFile(accountFile, "")
 	if err != nil {
-		return
+		return "", "", err
 	}
+
+	buff := bufio.NewScanner(file)
+	content = buff.Bytes()
 
 	text := strings.Split(string(rot47(content)), ":")
 	if len(text) != 2 {

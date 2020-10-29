@@ -3,7 +3,7 @@ package screens
 import (
 	"fmt"
 	"image/color"
-	"pandora/data"
+	"pandora/pkg/account"
 
 	"fyne.io/fyne"
 	"fyne.io/fyne/canvas"
@@ -51,12 +51,12 @@ func showUpdateForm(base fyne.Window) {
 // updateボタンを押した時に作動する関数
 func update(ecsID, password *widget.Entry, base fyne.Window) {
 	if ecsID.Text != "" || password.Text != "" {
-		if err := data.WriteAccountInfo(ecsID.Text, password.Text); err != nil {
+		if err := account.WriteAccountInfo(ecsID.Text, password.Text); err != nil {
 			dialog.ShowError(err, base)
 		}
 	}
 
-	id, pass, err := data.ReadAccountInfo()
+	id, pass, err := account.ReadAccountInfo()
 	if err != nil {
 		dialog.ShowError(err, base)
 	}
