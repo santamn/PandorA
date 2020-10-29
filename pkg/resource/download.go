@@ -120,10 +120,10 @@ func collectUnacquiredResouceInfo(lic *pandaapi.LoggedInClient, sites []site) (r
 	for _, site := range sites {
 		// サイトのリソース情報を取得
 		resp, err := lic.FetchSiteResources(site.ID)
+		defer resp.Body.Close()
 		if err != nil {
 			return resources, err
 		}
-		defer resp.Body.Close()
 
 		var w wrapper
 		if err := json.NewDecoder(resp.Body).Decode(&w); err != nil {
@@ -173,10 +173,10 @@ func collectSites(lic *pandaapi.LoggedInClient) (sites []site, err error) {
 	sites = make([]site, 0)
 
 	resp, err := lic.FetchAllSites()
+	defer resp.Body.Close()
 	if err != nil {
 		return sites, err
 	}
-	defer resp.Body.Close()
 
 	var w wrapper
 	if err := json.NewDecoder(resp.Body).Decode(&w); err != nil {
