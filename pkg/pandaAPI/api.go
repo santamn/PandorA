@@ -48,10 +48,14 @@ type DeadPandAError struct {
 
 func (d *DeadPandAError) Error() string {
 	if len(d.message) > 0 {
-		return fmt.Sprintf("Code %d: %s", d.code, d.message)
+		return fmt.Sprintf("Status code %d: %s", d.code, d.message)
 	}
 
-	return fmt.Sprintf("Code %d: %s", d.code, d.err.Error())
+	if d.err != nil {
+		return fmt.Sprintf("Status code %d: %s", d.code, d.err.Error())
+	}
+
+	return fmt.Sprintf("Status code %d: PandA is being dead", d.code)
 }
 
 // FailedLoginError ログインに失敗したときのエラー
@@ -62,7 +66,7 @@ type FailedLoginError struct {
 
 func (f *FailedLoginError) Error() string {
 	return fmt.Sprintf(
-		"Login failed. Please confirm your EcsID and password.\nEcsID: %s, Password: %s",
+		"Login failed. Please confirm your EcsID and password.\nEcsID: %s\nPassword: %s",
 		f.EscID,
 		f.Password,
 	)

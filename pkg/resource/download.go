@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	dir "pandora/pkg/dir"
+	"pandora/pkg/dir"
 	pandaapi "pandora/pkg/pandaAPI"
 	"strings"
 	"sync"
@@ -45,13 +45,13 @@ func Download(ecsID, password string) {
 		fmt.Println(err)
 	}
 
-	if errors := paraDownloadPDF(lic, resources); len(errors) > 0 {
+	if errors := paraDownload(lic, resources); len(errors) > 0 {
 		fmt.Println(errors)
 	}
 }
 
-// paraDownloadPDF 未取得のリソースを並列にダウンロードする関数
-func paraDownloadPDF(lic *pandaapi.LoggedInClient, resources []resource) (errors []error) {
+// paraDownload 未取得のリソースを並列にダウンロードする関数
+func paraDownload(lic *pandaapi.LoggedInClient, resources []resource) (errors []error) {
 	// HTTPレスポンスとエラーをどちらも呼び出し側で扱うための構造体
 	type result struct {
 		response *http.Response
