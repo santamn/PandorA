@@ -65,7 +65,11 @@ func paraDownload(lic *pandaapi.LoggedInClient, resources []resource) (errors []
 	resultChan := make(chan result, len(resources))
 
 	for _, res := range resources {
-		if res.Type != "application/pdf" { // TODO:音声・動画ファイルの形式を調べてそれのみを弾くようにする
+		if res.Type == "video/mp4" ||
+			res.Type == "audio/mp4" ||
+			res.Type == "audio/mpeg" ||
+			res.Type == "text/url" {
+			// mp4,m4a,mp3,urlを除外する
 			continue
 		}
 
@@ -74,7 +78,7 @@ func paraDownload(lic *pandaapi.LoggedInClient, resources []resource) (errors []
 			defer wg.Done()
 
 			// リソースをダウンロード
-			resp, err := lic.FetchResource(info.lessonSite.ID, info.Title)
+			resp, err := lic.FetchResource(info.URL)
 			resultChan <- result{response: resp, info: info, err: err}
 
 		}(lic, res)
