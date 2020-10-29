@@ -22,12 +22,12 @@ const (
 	pandaLogin = pandaDomain + "/sakai-login-tool/container"
 	// URL for all sites
 	pandaAllSites = pandaDomain + "/direct/site.json"
-	// URL for Resources
-	pandaResources = pandaDomain + "/direct/content/site/" // {SITEID}.json を追記する
+	// URL for Resources Infomation
+	pandaResourcesInfo = pandaDomain + "/direct/content/site/" // {SITEID}.json を追記する
+	// URL for getting resource
+	pandaResource = pandaDomain + "/access/content/group/" // {SITEID}/{資料名} を追記する
 	// URL for Resource Acception
 	pandaAcception = pandaDomain + "/access/accept?"
-	// PATH for resource folder
-	resourcePath = "~/Desktop/PandorA"
 )
 
 var (
@@ -173,7 +173,7 @@ func collectUnacquiredResouceInfo(loggedInClient *http.Client, sites []site) (re
 
 	resources = make([]resource, 0, len(sites))
 	for _, site := range sites {
-		url := pandaResources + site.ID + ".json"
+		url := pandaResourcesInfo + site.ID + ".json"
 		resp, err := loggedInClient.Get(url)
 		if err != nil {
 			return resources, err
