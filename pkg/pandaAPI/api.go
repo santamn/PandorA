@@ -3,6 +3,8 @@ package pandaapi
 import (
 	"errors"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -75,16 +77,20 @@ func (f *FailedLoginError) Error() string {
 // IsAlive PandAサーバが生きているかどうかを判定する
 func IsAlive() bool {
 	// リダイレクトを無効にする
-	c := *&http.Client{}
+	c := new(http.Client)
 	c.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
 
 	resp, err := c.Head(pandaDomain)
+	defer func(){
+		io.Copy(ioutil.Discard,resp.Body)
+		resp.Body.Close()
+	}
 	if err != nil {
 		return false
 	}
-	defer resp.Body.Close()
+	
 
 	if resp.StatusCode != 200 {
 		return false
@@ -138,7 +144,10 @@ func (lic *LoggedInClient) FetchResource(siteID, resourceName string) (resp *htt
 		query := "ref=" + path + "&url=" + path
 
 		p, e := lic.c.Get(pandaAcception + query)
-		p.Body.Close()
+		defer func ()  {
+			io.Copy(ioutil.Discard,p.Body)
+			p.Body.Close()
+		}
 		if e != nil {
 			return resp, e
 		}
@@ -166,10 +175,10 @@ func NewLoggedInClient(ecsID, password string) (lic *LoggedInClient, err error) 
 	// pandaURLにGETを行うと、ログインページにリダイレクトされる
 	// この際Pandaのドメインに対しJESESSIONIDが紐付けられる
 	loginPage, err := client.Get(pandaLogin)
+	defer loginPage.Body.Close()
 	if err != nil {
 		return &LoggedInClient{c: client}, err
 	}
-	defer loginPage.Body.Close()
 
 	// ログインページからLT(おそらくログインチケットの略)を取得
 	lt, err := getLT(loginPage)
@@ -211,10 +220,10 @@ func login(client *http.Client, lt, ecsID, password string) (loggedInClient *htt
 	// ログインフォームに必要なデータを送信すると、PandAのポータルサイトにリダイレクトする
 	// この際、クエリパラメータとして発行されるticketを用いて、JSESSIONIDを認証済みにする処理がサーバー側で行われる
 	resp, err := client.Do(req)
+	defer resp.Body.Close()
 	if err != nil {
 		return client, err
 	}
-	resp.Body.Close()
 
 	// ログインに成功したかどうかを確認する
 	auth, err := isAuthorized(resp)
