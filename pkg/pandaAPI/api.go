@@ -54,22 +54,22 @@ func (d *DeadPandAError) Error() string {
 	return fmt.Sprintf("Code %d: %s", d.code, d.err.Error())
 }
 
-// LogginFailError ログインに失敗したときのエラー
-type LogginFailError struct {
+// FailedLoginError ログインに失敗したときのエラー
+type FailedLoginError struct {
 	EscID    string
 	Password string
 }
 
-func (l *LogginFailError) Error() string {
+func (f *FailedLoginError) Error() string {
 	return fmt.Sprintf(
 		"Login failed. Please confirm your EcsID and password.\nEcsID: %s, Password: %s",
-		l.EscID,
-		l.Password,
+		f.EscID,
+		f.Password,
 	)
 }
 
 // IsAlive PandAサーバが生きているかどうかを判定する
-func IsAlive() (bool, error) {
+func IsAlive() bool {
 	// リダイレクトを無効にする
 	c := *&http.Client{}
 	c.CheckRedirect = func(req *http.Request, via []*http.Request) error {
@@ -78,15 +78,15 @@ func IsAlive() (bool, error) {
 
 	resp, err := c.Head(pandaDomain)
 	if err != nil {
-		return false, &DeadPandAError{code: resp.StatusCode, err: err}
+		return false
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		return false, &DeadPandAError{code: resp.StatusCode, err: err}
+		return false
 	}
 
-	return true, nil
+	return true
 }
 
 // FetchAllSites 全ての授業サイトの情報を取得するAPI レスポンスボディをクローズする必要がある
@@ -154,9 +154,8 @@ func NewLoggedInClient(ecsID, password string) (lic *LoggedInClient, err error) 
 	client := &http.Client{Jar: jar}
 
 	// まずPandAの生存確認を行う
-	// この関数内ではここで生存が確認された場合にはPandAが死んでいないものと推定する
-	alive, err := IsAlive()
-	if !alive {
+	// この関数内ではここで生存が確認された場合にはログイン中はPandAが死んでいないものと推定する
+	if !IsAlive() {
 		return &LoggedInClient{c: client}, err
 	}
 
@@ -175,7 +174,7 @@ func NewLoggedInClient(ecsID, password string) (lic *LoggedInClient, err error) 
 	}
 
 	// ログイン
-	client, err = login(client, lt, ecsID, password) // TODO:ログインの成功・失敗で分岐する
+	client, err = login(client, lt, ecsID, password)
 	if err != nil {
 		return &LoggedInClient{c: client}, err
 	}
@@ -213,12 +212,13 @@ func login(client *http.Client, lt, ecsID, password string) (loggedInClient *htt
 	}
 	resp.Body.Close()
 
+	// ログインに成功したかどうかを確認する
 	auth, err := isAuthorized(resp)
 	if err != nil {
 		return client, err
 	}
 	if !auth {
-		return client, &LogginFailError{EscID: ecsID, Password: password}
+		return client, &FailedLoginError{EscID: ecsID, Password: password}
 	}
 
 	return client, nil

@@ -1,9 +1,8 @@
-package data
+package resource
 
 import (
 	"encoding/json"
-	"os"
-	"path/filepath"
+	"pandora/pkg/dir"
 )
 
 // downloadMap すでにダウンロードした資料についての情報を表すマップ
@@ -26,20 +25,9 @@ type downloadMap map[string]map[string]string
 // readDownloadMap ダウンロードマップをファイルから読み出す
 func readDownloadMap() downloadMap {
 	dmap := make(downloadMap)
-	// あらかじめ戻り先を絶対パスに展開しておく
-	prev, err := filepath.Abs(".")
-	if err != nil {
-		return dmap
-	}
-	defer os.Chdir(prev)
 
-	if err := cdPandorA(); err != nil {
-		return dmap
-	}
-
-	mapFile, err := os.Open("dmap.dat")
+	mapFile, err := dir.FetchFile("dmap.dat", "")
 	if err != nil {
-		// ファイルが開けない場合は空のマップを返す
 		return dmap
 	}
 
@@ -50,18 +38,7 @@ func readDownloadMap() downloadMap {
 
 // writeFile ダウンロードマップをファイルに書き込む
 func (dmap downloadMap) writeFile() error {
-	// あらかじめ戻り先を絶対パスに展開しておく
-	prev, err := filepath.Abs(".")
-	if err != nil {
-		return err
-	}
-	defer os.Chdir(prev)
-
-	if err := cdPandorA(); err != nil {
-		return err
-	}
-
-	mapFile, err := os.OpenFile("dmap.dat", os.O_RDWR|os.O_CREATE, 0766)
+	mapFile, err := dir.FetchFile("dmap.dat", "")
 	if err != nil {
 		return err
 	}
