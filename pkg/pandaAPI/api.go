@@ -24,7 +24,7 @@ const (
 	// URL for Resources Infomation
 	pandaResourcesInfo = pandaDomain + "/direct/content/site/" // {SITEID}.json を追記する
 	// URL for getting resource
-	pandaResource = pandaDomain + "/access/content/group/" // {SITEID}/{資料名} を追記する
+	pandaResource = pandaDomain + "/access" // {SITEID}/{フォルダ名(あれば)}/{資料名} を追記する
 	// URL for Resource Acception
 	pandaAcception = pandaDomain + "/access/accept?"
 	// Error message appears when failed to log in
@@ -43,21 +43,17 @@ type LoggedInClient struct {
 
 // DeadPandAError PandAが死んでいる時に返すエラー
 type DeadPandAError struct {
-	code    int
-	err     error
-	message string
+	code int
+	err  error
+	url  string
 }
 
 func (d *DeadPandAError) Error() string {
-	if len(d.message) > 0 {
-		return fmt.Sprintf("Status code %d: %s", d.code, d.message)
-	}
-
 	if d.err != nil {
-		return fmt.Sprintf("Status code %d: %s", d.code, d.err.Error())
+		return fmt.Sprintf("Status code %d in %s\nerror: %s\n", d.code, d.url, d.err)
 	}
 
-	return fmt.Sprintf("Status code %d: PandA is being dead", d.code)
+	return fmt.Sprintf("Status code %d: in %s\n", d.code, d.url)
 }
 
 // FailedLoginError ログインに失敗したときのエラー
@@ -83,14 +79,13 @@ func IsAlive() bool {
 	}
 
 	resp, err := c.Head(pandaDomain)
-	defer func(){
-		io.Copy(ioutil.Discard,resp.Body)
+	defer func() {
+		io.Copy(ioutil.Discard, resp.Body)
 		resp.Body.Close()
-	}
+	}()
 	if err != nil {
 		return false
 	}
-	
 
 	if resp.StatusCode != 200 {
 		return false
@@ -104,7 +99,7 @@ func (lic *LoggedInClient) FetchAllSites() (resp *http.Response, err error) {
 	resp, err = lic.c.Get(pandaAllSites)
 	// 200以外のレスポンスが帰ってくる場合はサーバーが死んでいるとみなす
 	if resp.StatusCode != 200 {
-		return resp, &DeadPandAError{code: resp.StatusCode, err: err}
+		return resp, &DeadPandAError{code: resp.StatusCode, err: err, url: pandaAllSites}
 	}
 
 	return
@@ -117,17 +112,15 @@ func (lic *LoggedInClient) FetchSiteResources(siteID string) (resp *http.Respons
 	resp, err = lic.c.Get(siteURL)
 	// 200以外のレスポンスが帰ってくる場合はサーバーが死んでいるとみなす
 	if resp.StatusCode != 200 {
-		return resp, &DeadPandAError{code: resp.StatusCode, err: err}
+		return resp, &DeadPandAError{code: resp.StatusCode, err: err, url: siteURL}
 	}
 
 	return
 }
 
 // FetchResource リソースを取得するAPI レスポンスボディをクローズする必要がある
-func (lic *LoggedInClient) FetchResource(siteID, resourceName string) (resp *http.Response, err error) {
-	resourceURL := pandaResource + siteID + "/" + url.PathEscape(resourceName)
-
-	resp, err = lic.c.Get(resourceURL)
+func (lic *LoggedInClient) FetchResource(uri string) (resp *http.Response, err error) {
+	resp, err = lic.c.Get(uri)
 	if err != nil {
 		return
 	}
@@ -139,25 +132,26 @@ func (lic *LoggedInClient) FetchResource(siteID, resourceName string) (resp *htt
 
 	// 著作権制限付きダウンロード警告がでる場合
 	if resp.StatusCode == 302 {
+		// /{SITEID}/{フォルダパス}/{資料名}を取得
+		path := strings.Replace(uri, pandaResource, "", 1)
 		// 資料のダウンロードの許可をくれるパスへクエリを投げる
-		path := "/content/group/" + siteID + "/" + url.QueryEscape(resourceName)
 		query := "ref=" + path + "&url=" + path
 
 		p, e := lic.c.Get(pandaAcception + query)
-		defer func ()  {
-			io.Copy(ioutil.Discard,p.Body)
+		defer func() {
+			io.Copy(ioutil.Discard, p.Body)
 			p.Body.Close()
-		}
+		}()
 		if e != nil {
 			return resp, e
 		}
 
-		resp, err = lic.c.Get(resourceURL)
+		resp, err = lic.c.Get(uri)
 		return
 	}
 
 	// 200と302以外のレスポンスを返す場合はサーバーが死んでいるとみなす
-	return resp, &DeadPandAError{code: resp.StatusCode, err: err}
+	return resp, &DeadPandAError{code: resp.StatusCode, err: err, url: uri}
 }
 
 // NewLoggedInClient ログイン済みのクライアントを返す関数

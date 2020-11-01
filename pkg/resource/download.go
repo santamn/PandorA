@@ -160,7 +160,7 @@ func collectUnacquiredResouceInfo(lic *pandaapi.LoggedInClient, sites []site) (r
 		}
 	}
 
-	if err := dmap.writeFile(); err != nil {
+	if err := dmap.writeToFile(); err != nil {
 		return resources, err
 	}
 

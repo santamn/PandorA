@@ -36,8 +36,8 @@ func readDownloadMap() downloadMap {
 	return dmap
 }
 
-// writeFile ダウンロードマップをファイルに書き込む
-func (dmap downloadMap) writeFile() error {
+// writeToFile ダウンロードマップをファイルに書き込む
+func (dmap downloadMap) writeToFile() error {
 	mapFile, err := dir.FetchFile("dmap.dat", "")
 	if err != nil {
 		return err
