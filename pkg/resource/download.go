@@ -40,7 +40,7 @@ func Download(ecsID, password string) {
 		fmt.Println(err)
 	}
 
-	resources, err := collectUnacquiredResouceInfo(lic, sites)
+	resources, err := collectUnacquiredResouceInfo(lic, sites, []string{"video/mp4", "audio/mp4", "audio/mpeg", "text/url"})
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -65,14 +65,6 @@ func paraDownload(lic *pandaapi.LoggedInClient, resources []resource) (errors []
 	resultChan := make(chan result, len(resources))
 
 	for _, res := range resources {
-		if res.Type == "video/mp4" ||
-			res.Type == "audio/mp4" ||
-			res.Type == "audio/mpeg" ||
-			res.Type == "text/url" {
-			// mp4,m4a,mp3,urlを除外する
-			continue
-		}
-
 		wg.Add(1)
 		go func(lic *pandaapi.LoggedInClient, info resource) {
 			defer wg.Done()
@@ -112,50 +104,79 @@ func paraDownload(lic *pandaapi.LoggedInClient, resources []resource) (errors []
 }
 
 // collectUnacquiredResouceInfo 未取得のリソースの情報を取得
-func collectUnacquiredResouceInfo(lic *pandaapi.LoggedInClient, sites []site) (resources []resource, err error) {
-	// APIの返すJSONと形を合わせるための構造体
-	type wrapper struct {
-		Collection []resource `json:"content_collection"`
+func collectUnacquiredResouceInfo(lic *pandaapi.LoggedInClient, sites []site, rejectableTypes []string) (resources []resource, err error) {
+	type (
+		// APIの返すJSONと形を合わせるための構造体
+		wrapper struct {
+			Collection []resource `json:"content_collection"`
+		}
+
+		// HTTPレスポンスとエラーをどちらも呼び出し側で扱うための構造体
+		result struct {
+			resources []resource
+			s         site
+			err       error
+		}
+	)
+
+	var wg sync.WaitGroup
+	resultChan := make(chan result, len(sites))
+
+	for _, s := range sites {
+		wg.Add(1)
+		go func(s site) {
+			defer wg.Done()
+
+			resp, err := lic.FetchSiteResources(s.ID)
+			if err != nil {
+				resultChan <- result{resources: nil, s: s, err: err}
+				return
+			}
+			defer resp.Body.Close()
+
+			var w wrapper
+			if err := json.NewDecoder(resp.Body).Decode(&w); err != nil {
+				resultChan <- result{resources: nil, s: s, err: err}
+				return
+			}
+
+			resultChan <- result{resources: w.Collection, s: s, err: nil}
+		}(s)
 	}
 
+	// 送信するものがなくなったらチャネルをクローズする
+	go func() {
+		wg.Wait()
+		close(resultChan)
+	}()
+
 	dmap := readDownloadMap()
-
 	resources = make([]resource, 0, len(sites))
-	for _, site := range sites {
-		// サイトのリソース情報を取得
-		resp, err := lic.FetchSiteResources(site.ID)
-		defer resp.Body.Close()
-		if err != nil {
+
+	for result := range resultChan {
+		if result.err != nil {
 			return resources, err
 		}
+		for _, res := range result.resources {
+			if isIncluded(res.Type, rejectableTypes) {
+				continue
+			}
+			res.lessonSite = result.s
 
-		var w wrapper
-		if err := json.NewDecoder(resp.Body).Decode(&w); err != nil {
-			return resources, err
-		}
-
-		for _, res := range w.Collection {
-			// リソース情報に講義名を追加
-			res.lessonSite = site
-
+			resourceMap, ok := dmap[result.s.ID]
 			// ダウンロードしていない資料もしくは最終編集時刻が変更されているもののみダウンロード候補へ追加する
-			resourceMap, ok := dmap[site.ID]
-			if !ok { // サイトIDがダウンロードマップに存在しない場合(= その講義にはじめて資料が追加された)
+			if !ok {
+				// サイトIDがダウンロードマップに存在しない場合(= その講義にはじめて資料が追加された)
 				resources = append(resources, res)
-
-				// ダウンロードマップを更新
-				dmap[site.ID] = map[string]string{res.Title: res.LastModified}
+				dmap[result.s.ID] = map[string]string{res.Title: res.LastModified}
 				continue
 			}
 
 			if lastModified, ok := resourceMap[res.Title]; !ok || lastModified != res.LastModified {
 				// 資料名がダウンロードマップに登録されていない場合(= いままでにダウンロードされたことがない)
 				// もしくは最終編集時刻が過去のものと異なっている場合
-
 				resources = append(resources, res)
-				// ダウンロードマップを更新
-				dmap[site.ID][res.Title] = res.LastModified
-				continue
+				dmap[result.s.ID][res.Title] = res.LastModified
 			}
 		}
 	}
@@ -177,10 +198,10 @@ func collectSites(lic *pandaapi.LoggedInClient) (sites []site, err error) {
 	sites = make([]site, 0)
 
 	resp, err := lic.FetchAllSites()
-	defer resp.Body.Close()
 	if err != nil {
 		return sites, err
 	}
+	defer resp.Body.Close()
 
 	var w wrapper
 	if err := json.NewDecoder(resp.Body).Decode(&w); err != nil {
@@ -213,4 +234,14 @@ func makeSemesterDescription() (text string) {
 	}
 
 	return
+}
+
+// 与えられた文字列が配列に含まれるかどうかを判定する
+func isIncluded(text string, texts []string) bool {
+	for _, t := range texts {
+		if t == text {
+			return true
+		}
+	}
+	return false
 }

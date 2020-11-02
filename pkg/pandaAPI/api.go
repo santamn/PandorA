@@ -79,13 +79,13 @@ func IsAlive() bool {
 	}
 
 	resp, err := c.Head(pandaDomain)
+	if err != nil {
+		return false
+	}
 	defer func() {
 		io.Copy(ioutil.Discard, resp.Body)
 		resp.Body.Close()
 	}()
-	if err != nil {
-		return false
-	}
 
 	if resp.StatusCode != 200 {
 		return false
@@ -132,19 +132,19 @@ func (lic *LoggedInClient) FetchResource(uri string) (resp *http.Response, err e
 
 	// 著作権制限付きダウンロード警告がでる場合
 	if resp.StatusCode == 302 {
-		// /{SITEID}/{フォルダパス}/{資料名}を取得
+		// /{SITEID}/{フォルダパス}/{資料名}の部分を取得
 		path := strings.Replace(uri, pandaResource, "", 1)
 		// 資料のダウンロードの許可をくれるパスへクエリを投げる
 		query := "ref=" + path + "&url=" + path
 
 		p, e := lic.c.Get(pandaAcception + query)
+		if e != nil {
+			return resp, e
+		}
 		defer func() {
 			io.Copy(ioutil.Discard, p.Body)
 			p.Body.Close()
 		}()
-		if e != nil {
-			return resp, e
-		}
 
 		resp, err = lic.c.Get(uri)
 		return
@@ -169,10 +169,10 @@ func NewLoggedInClient(ecsID, password string) (lic *LoggedInClient, err error) 
 	// pandaURLにGETを行うと、ログインページにリダイレクトされる
 	// この際Pandaのドメインに対しJESESSIONIDが紐付けられる
 	loginPage, err := client.Get(pandaLogin)
-	defer loginPage.Body.Close()
 	if err != nil {
 		return &LoggedInClient{c: client}, err
 	}
+	defer loginPage.Body.Close()
 
 	// ログインページからLT(おそらくログインチケットの略)を取得
 	lt, err := getLT(loginPage)
@@ -214,10 +214,10 @@ func login(client *http.Client, lt, ecsID, password string) (loggedInClient *htt
 	// ログインフォームに必要なデータを送信すると、PandAのポータルサイトにリダイレクトする
 	// この際、クエリパラメータとして発行されるticketを用いて、JSESSIONIDを認証済みにする処理がサーバー側で行われる
 	resp, err := client.Do(req)
-	defer resp.Body.Close()
 	if err != nil {
 		return client, err
 	}
+	defer resp.Body.Close()
 
 	// ログインに成功したかどうかを確認する
 	auth, err := isAuthorized(resp)
