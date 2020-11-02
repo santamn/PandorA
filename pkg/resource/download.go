@@ -12,6 +12,23 @@ import (
 	"time"
 )
 
+const (
+	// .docファイル(旧式のワードファイル)
+	doc = "msword"
+	// .docxファイル
+	docx = "vnd.openxmlformats-officedocument.wordprocessingml.document"
+	// .pptファイル(旧式のパワーポイント)
+	ppt = "vnd.ms-powerpoint"
+	// .pptxファイル
+	pptx = "vnd.openxmlformats-officedocument.presentationml.presentation"
+	// .xlsファイル(旧式のエクセルファイル)
+	xls = "vnd.ms-excel"
+	// .xlsxファイル
+	xlsx = "vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+	// urlType
+	urlType = "text/url"
+)
+
 // site PandAのサイト情報を取得するための構造体
 type site struct {
 	Title string `json:"title"`
@@ -28,8 +45,17 @@ type resource struct {
 	lessonSite   site
 }
 
+// RejectableType ダウンロードしないファイル形式を指定する構造体
+type RejectableType struct {
+	Video      bool
+	Audio      bool
+	Excel      bool
+	PowerPoint bool
+	Word       bool
+}
+
 // Download 資料をダウンロード
-func Download(ecsID, password string) {
+func Download(ecsID, password string, reject RejectableType) {
 	lic, err := pandaapi.NewLoggedInClient(ecsID, password)
 	if err != nil {
 		fmt.Println(err)
@@ -40,7 +66,7 @@ func Download(ecsID, password string) {
 		fmt.Println(err)
 	}
 
-	resources, err := collectUnacquiredResouceInfo(lic, sites, []string{"video/mp4", "audio/mp4", "audio/mpeg", "text/url"})
+	resources, err := collectUnacquiredResouceInfo(lic, sites, reject)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -104,7 +130,7 @@ func paraDownload(lic *pandaapi.LoggedInClient, resources []resource) (errors []
 }
 
 // collectUnacquiredResouceInfo 未取得のリソースの情報を取得
-func collectUnacquiredResouceInfo(lic *pandaapi.LoggedInClient, sites []site, rejectableTypes []string) (resources []resource, err error) {
+func collectUnacquiredResouceInfo(lic *pandaapi.LoggedInClient, sites []site, reject RejectableType) (resources []resource, err error) {
 	type (
 		// APIの返すJSONと形を合わせるための構造体
 		wrapper struct {
@@ -158,7 +184,7 @@ func collectUnacquiredResouceInfo(lic *pandaapi.LoggedInClient, sites []site, re
 			return resources, err
 		}
 		for _, res := range result.resources {
-			if isIncluded(res.Type, rejectableTypes) {
+			if isRejectable(res.Type, reject) {
 				continue
 			}
 			res.lessonSite = result.s
@@ -236,12 +262,39 @@ func makeSemesterDescription() (text string) {
 	return
 }
 
-// 与えられた文字列が配列に含まれるかどうかを判定する
-func isIncluded(text string, texts []string) bool {
-	for _, t := range texts {
-		if t == text {
-			return true
-		}
+// 与えられたContent-Typeが除外すべきかどうかを判定する
+func isRejectable(contentType string, reject RejectableType) bool {
+	if contentType == urlType {
+		// URLは必ず除外
+		return true
 	}
+
+	// MIMEタイプをtype/subtypeで分ける
+	s := strings.Split(contentType, "/")
+	if len(s) != 2 {
+		return true
+	}
+	group, sub := s[0], s[1]
+
+	if reject.Video && group == "video" {
+		return true
+	}
+
+	if reject.Audio && group == "audio" {
+		return true
+	}
+
+	if reject.Excel && (sub == xls || sub == xlsx) {
+		return true
+	}
+
+	if reject.PowerPoint && (sub == ppt || sub == pptx) {
+		return true
+	}
+
+	if reject.Word && (sub == doc || sub == docx) {
+		return true
+	}
+
 	return false
 }
