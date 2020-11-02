@@ -3,11 +3,42 @@ package dir
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 )
+
+// デスクトップまでのパスを取得する
+// 取得できない場合は$HOMEを返す
+func getPathToDesktop() (path string) {
+	var home string
+	switch runtime.GOOS {
+	case "linux", "darwin":
+		home = os.Getenv("HOME")
+	case "windows":
+		home = os.Getenv("USERPROFILE")
+	}
+
+	if err := os.Chdir(home); err != nil {
+		return home
+	}
+
+	if info, err := os.Stat(home + "/Desktop"); !os.IsNotExist(err) && info.IsDir() {
+		// $HOME/Desktopが存在する場合
+		return home + "/Desktop"
+	}
+
+	if info, err := os.Stat(home + "/デスクトップ"); !os.IsNotExist(err) && info.IsDir() {
+		// $HOME/デスクトップが存在する場合
+		return home + "/デスクトップ"
+	}
+
+	return home
+}
 
 // PandorAフォルダへ移動する
 func cdPandorA() error {
-	if err := os.Chdir(os.Getenv("HOME") + "/Desktop"); err != nil {
+	pathToDesktop := getPathToDesktop()
+
+	if err := os.Chdir(pathToDesktop); err != nil {
 		return err
 	}
 
