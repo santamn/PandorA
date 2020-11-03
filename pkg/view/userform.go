@@ -22,7 +22,7 @@ func MakeUserForm(parent fyne.Window) fyne.CanvasObject {
 			{Text: "Password", Widget: passwordEntry},
 		},
 		OnSubmit: func() {
-			// 入力された内容をファイルに保存する
+			// 入力された内容をファイルに保存してウィンドウを閉じる
 			id := ecsIDentry.Text
 			password := passwordEntry.Text
 
@@ -30,6 +30,7 @@ func MakeUserForm(parent fyne.Window) fyne.CanvasObject {
 				if err := account.WriteAccountInfo(id, password); err != nil {
 					dialog.NewError(err, parent)
 				}
+				parent.Close()
 			}
 		},
 		OnCancel: func() {
