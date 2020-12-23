@@ -6,5 +6,5 @@ import (
 )
 
 func TestDownload(t *testing.T) {
-	resource.Download("a0180935", "SCP-8900-ex", resource.RejectableType{Video: true, Audio: true})
+	resource.Download("a0180935", "SCP-8900-ex", &resource.RejectableType{Video: true, Audio: true})
 }

@@ -13,9 +13,9 @@ func main() {
 	pandora.Settings().SetTheme(theme.DarkTheme())
 
 	window := pandora.NewWindow("PandorA")
-	object := view.MakeUserForm(window)
+	object := view.MakeForm(window)
 
 	window.Resize(fyne.NewSize(250, 100))
 	window.SetContent(object)
-	window.ShowAndRun()
+	pandora.Run()
 }

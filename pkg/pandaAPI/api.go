@@ -73,7 +73,7 @@ func (f *FailedLoginError) Error() string {
 // IsAlive PandAサーバが生きているかどうかを判定する
 func IsAlive() bool {
 	// リダイレクトを無効にする
-	c := new(http.Client)
+	c := http.DefaultClient
 	c.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		return http.ErrUseLastResponse
 	}

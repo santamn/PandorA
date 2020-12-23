@@ -8,18 +8,18 @@ import (
 // downloadMap すでにダウンロードした資料についての情報を表すマップ
 //
 // 	"SiteID1":{
-// 	　"資料名1":"最終修正時刻1",
-//   　　"資料名2":"最終修正時刻2",
-//    ...
+//		"resource1":"last-modified1",
+//		"resource2":"last-modified2",
+//		...
 // 	},
-//
 // 	"SiteID2":{
-// 		"資料名3":"最終修正時刻3",
-// 		"資料名4":"最終修正時刻4",
+// 		"resource3":"last-modified3",
+// 		"resource4":"last-modified4",
 // 		...
 //	},
 //
 // という構造になっており、最終修正時刻が最後にダンロードした時から変化したものか、ここに登録されていないリソースのみダウンロードする
+//
 type downloadMap map[string]map[string]string
 
 // readDownloadMap ダウンロードマップをファイルから読み出す

@@ -5,6 +5,8 @@ import (
 	"encoding/binary"
 	"errors"
 	"pandora/pkg/dir"
+	"pandora/pkg/resource"
+	"strconv"
 	"strings"
 )
 
@@ -14,8 +16,9 @@ const (
 )
 
 // WriteAccountInfo アカウント情報を書き込む
-func WriteAccountInfo(ecsID, password string) error {
-	data := []byte(ecsID + ":" + password)
+func WriteAccountInfo(ecsID, password string, rejectable *resource.RejectableType) error {
+	rejectNum := rejectable.Encode()
+	data := []byte(ecsID + ":" + password + ":" + rejectNum)
 
 	file, err := dir.FetchFile(accountFile, "")
 	if err != nil {
@@ -30,24 +33,27 @@ func WriteAccountInfo(ecsID, password string) error {
 }
 
 // ReadAccountInfo アカウント情報の読み出しを行う
-func ReadAccountInfo() (ecsID, password string, err error) {
-	content := make([]byte, 0, 32)
-
+func ReadAccountInfo() (ecsID, password string, rejectable *resource.RejectableType, err error) {
 	file, err := dir.FetchFile(accountFile, "")
 	if err != nil {
-		return "", "", err
+		return "", "", nil, err
 	}
 
-	buff := bufio.NewScanner(file)
-	content = buff.Bytes()
+	content := bufio.NewScanner(file).Bytes()
 
 	text := strings.Split(string(rot47(content)), ":")
-	if len(text) != 2 {
+	if len(text) != 3 {
 		err = errors.New("Invalid format")
 		return
 	}
 
-	ecsID, password = text[0], text[1]
+	var rejectNum string
+	ecsID, password, rejectNum = text[0], text[1], text[2]
+	num, err := strconv.Atoi(rejectNum)
+	if err != nil {
+		return ecsID, password, nil, err
+	}
+	rejectable = resource.DecodeRejectableType(uint(num))
 
 	return
 }

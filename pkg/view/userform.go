@@ -3,6 +3,7 @@ package view
 import (
 	"image/color"
 	"pandora/pkg/account"
+	"pandora/pkg/resource"
 
 	"fyne.io/fyne"
 	"fyne.io/fyne/canvas"
@@ -10,53 +11,6 @@ import (
 	"fyne.io/fyne/layout"
 	"fyne.io/fyne/widget"
 )
-
-// MakeUserForm EscIDとパスワードを入力する部分を作成する
-func MakeUserForm(parent fyne.Window) fyne.CanvasObject {
-	ecsIDentry := widget.NewEntry()
-	ecsIDentry.PlaceHolder = "ecsID"
-
-	passwordEntry := widget.NewPasswordEntry()
-	passwordEntry.PlaceHolder = "p@ssword"
-
-	videoCheck := widget.NewCheck("Video", func(_ bool) {})
-	audioCheck := widget.NewCheck("Audio", func(_ bool) {})
-	excelCheck := widget.NewCheck("Excel", func(_ bool) {})
-	powerPointCheck := widget.NewCheck("Power Point", func(_ bool) {})
-	wordCheck := widget.NewCheck("Word", func(_ bool) {})
-
-	form := &widget.Form{
-		Items: []*widget.FormItem{
-			{Text: "EcsID", Widget: ecsIDentry},
-			{Text: "Password", Widget: passwordEntry},
-			{Text: "", Widget: videoCheck},
-			{Text: "", Widget: audioCheck},
-			{Text: "", Widget: excelCheck},
-			{Text: "", Widget: powerPointCheck},
-			{Text: "", Widget: wordCheck},
-		},
-		OnSubmit: func() {
-			// 入力された内容をファイルに保存してウィンドウを閉じる
-			id := ecsIDentry.Text
-			password := passwordEntry.Text
-
-			if id != "" && password != "" {
-				if err := account.WriteAccountInfo(id, password); err != nil {
-					dialog.NewError(err, parent)
-				}
-				parent.Close()
-			}
-		},
-		OnCancel: func() {
-			// 入力された内容を消去する
-			ecsIDentry.SetText("")
-			passwordEntry.SetText("")
-		},
-		SubmitText: "Save",
-	}
-
-	return form
-}
 
 // MakeForm フォームを作成する関数
 func MakeForm(parent fyne.Window) fyne.CanvasObject {
@@ -92,8 +46,15 @@ func MakeForm(parent fyne.Window) fyne.CanvasObject {
 		id := ecsIDentry.Text
 		password := passwordEntry.Text
 
+		rejectable := new(resource.RejectableType)
+		rejectable.Video = videoCheck.Checked
+		rejectable.Audio = audioCheck.Checked
+		rejectable.Excel = excelCheck.Checked
+		rejectable.PowerPoint = powerPointCheck.Checked
+		rejectable.Word = wordCheck.Checked
+
 		if id != "" && password != "" {
-			if err := account.WriteAccountInfo(id, password); err != nil {
+			if err := account.WriteAccountInfo(id, password, rejectable); err != nil {
 				dialog.NewError(err, parent)
 			}
 			parent.Close()
@@ -112,7 +73,7 @@ func MakeForm(parent fyne.Window) fyne.CanvasObject {
 		cancel,
 	)
 
-	header := canvas.NewText("Enter ypur information", color.White)
+	header := canvas.NewText("Enter your account information", color.White)
 	header.Alignment = fyne.TextAlignCenter
 
 	middle := canvas.NewText("Select file types not to download", color.White)

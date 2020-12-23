@@ -54,8 +54,55 @@ type RejectableType struct {
 	Word       bool
 }
 
+// Encode RejectableTypeを文字列で表現したものを返す
+// trueを1,falseを0として,
+// Video * 2^4 + Audio * 2^3 + Excel * 2^2 + PowerPoint *  2^1 + Word * 2^0 を文字列で返す
+func (r *RejectableType) Encode() string {
+	var value uint
+	if r.Video {
+		value += 16
+	}
+	if r.Audio {
+		value += 8
+	}
+	if r.Excel {
+		value += 4
+	}
+	if r.PowerPoint {
+		value += 2
+	}
+	if r.Word {
+		value++
+	}
+
+	return fmt.Sprint(value)
+}
+
+// DecodeRejectableType 数値化したRejectableTypeを元の構造体の形に復元する
+func DecodeRejectableType(code uint) (r *RejectableType) {
+	r = new(RejectableType)
+
+	if code&16 == 1 {
+		r.Video = true
+	}
+	if code&8 == 1 {
+		r.Audio = true
+	}
+	if code&4 == 1 {
+		r.Excel = true
+	}
+	if code&2 == 1 {
+		r.PowerPoint = true
+	}
+	if code&1 == 1 {
+		r.Word = true
+	}
+
+	return
+}
+
 // Download 資料をダウンロード
-func Download(ecsID, password string, reject RejectableType) {
+func Download(ecsID, password string, reject *RejectableType) {
 	lic, err := pandaapi.NewLoggedInClient(ecsID, password)
 	if err != nil {
 		fmt.Println(err)
@@ -130,13 +177,12 @@ func paraDownload(lic *pandaapi.LoggedInClient, resources []resource) (errors []
 }
 
 // collectUnacquiredResouceInfo 未取得のリソースの情報を取得
-func collectUnacquiredResouceInfo(lic *pandaapi.LoggedInClient, sites []site, reject RejectableType) (resources []resource, err error) {
+func collectUnacquiredResouceInfo(lic *pandaapi.LoggedInClient, sites []site, reject *RejectableType) (resources []resource, err error) {
 	type (
 		// APIの返すJSONと形を合わせるための構造体
 		wrapper struct {
 			Collection []resource `json:"content_collection"`
 		}
-
 		// HTTPレスポンスとエラーをどちらも呼び出し側で扱うための構造体
 		result struct {
 			resources []resource
@@ -263,7 +309,7 @@ func makeSemesterDescription() (text string) {
 }
 
 // 与えられたContent-Typeが除外すべきかどうかを判定する
-func isRejectable(contentType string, reject RejectableType) bool {
+func isRejectable(contentType string, reject *RejectableType) bool {
 	if contentType == urlType {
 		// URLは必ず除外
 		return true
