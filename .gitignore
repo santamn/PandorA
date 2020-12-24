@@ -17,3 +17,6 @@
 *.DS_Store
 go.mod
 go.sum
+
+# 実行ファイルを除外
+cmd/pandora/pandora

@@ -47,6 +47,4 @@ func MenuReady() {
 }
 
 // MenuExit メニューを終了する
-func MenuExit() {
-
-}
+func MenuExit() {}
