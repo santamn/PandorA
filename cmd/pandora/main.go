@@ -13,7 +13,16 @@ import (
 	"github.com/getlantern/systray"
 )
 
-var window fyne.Window
+var (
+	window        fyne.Window
+	menuRestartCh chan struct{}
+	quitCh        chan struct{}
+)
+
+func init() {
+	menuRestartCh = make(chan struct{})
+	quitCh = make(chan struct{})
+}
 
 func main() {
 	// アカウント情報を記入するフォームを作成
@@ -23,12 +32,23 @@ func main() {
 	object := view.MakeForm(window)
 	window.Resize(fyne.NewSize(250, 100))
 	window.SetContent(object)
-
-	go systray.Run(menuReady, menuExit)
-
 	pandora.Run()
 
-	log.Println("終了")
+	// メニューバーを起動
+	go systray.Run(menuReady, menuExit)
+
+	for {
+		select {
+		case <-menuRestartCh:
+			pandora.Run()
+
+		case <-quitCh:
+			pandora.Quit()
+			systray.Quit()
+			log.Println("終了")
+			return
+		}
+	}
 }
 
 // menuReady メニューを初期化する
@@ -51,12 +71,14 @@ func menuReady() {
 
 		case <-settings.ClickedCh:
 			window.Show()
+			log.Print("画面出力")
+			menuRestartCh <- struct{}{}
 
 		case <-logButton.ClickedCh:
 			log.Println("ログ出力")
 
 		case <-quit.ClickedCh:
-			systray.Quit()
+			quitCh <- struct{}{}
 			return
 		}
 	}
