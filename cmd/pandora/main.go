@@ -14,6 +14,7 @@ import (
 )
 
 var (
+	pandora       fyne.App
 	window        fyne.Window
 	menuRestartCh chan struct{}
 	quitCh        chan struct{}
@@ -25,30 +26,28 @@ func init() {
 }
 
 func main() {
-	// アカウント情報を記入するフォームを作成
-	pandora := app.New()
+	// アカウント情報を入力するウィンドウを作成
+	pandora = app.New()
 	pandora.Settings().SetTheme(theme.DarkTheme())
 	window = pandora.NewWindow("PandorA")
 	object := view.MakeForm(window)
 	window.Resize(fyne.NewSize(250, 100))
 	window.SetContent(object)
-	pandora.Run()
+	window.SetOnClosed(window.Hide)
 
 	// メニューバーを起動
 	go systray.Run(menuReady, menuExit)
 
 	for {
 		select {
-		case <-menuRestartCh:
-			pandora.Run()
-
 		case <-quitCh:
-			pandora.Quit()
-			systray.Quit()
-			log.Println("終了")
 			return
+		default:
+			log.Println("画面起動")
+			pandora.Run()
 		}
 	}
+
 }
 
 // menuReady メニューを初期化する
@@ -72,12 +71,13 @@ func menuReady() {
 		case <-settings.ClickedCh:
 			window.Show()
 			log.Print("画面出力")
-			menuRestartCh <- struct{}{}
 
 		case <-logButton.ClickedCh:
 			log.Println("ログ出力")
 
 		case <-quit.ClickedCh:
+			pandora.Quit()
+			systray.Quit()
 			quitCh <- struct{}{}
 			return
 		}
