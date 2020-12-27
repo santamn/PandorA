@@ -1,4 +1,4 @@
-package view
+package main
 
 import (
 	"image/color"
@@ -12,20 +12,18 @@ import (
 	"fyne.io/fyne/widget"
 )
 
-// MakeForm フォームを作成する関数
-func MakeForm(parent fyne.Window) fyne.CanvasObject {
+//フォームを作成する関数
+func makeForm(parent fyne.Window) fyne.CanvasObject {
 	ecsIDentry := widget.NewEntry()
 	ecsIDentry.PlaceHolder = "ecsID"
-	ecsContainer := fyne.NewContainerWithLayout(
-		layout.NewHBoxLayout(),
-		canvas.NewText("ECS-ID", color.White),
-		ecsIDentry,
-	)
 
 	passwordEntry := widget.NewPasswordEntry()
 	passwordEntry.PlaceHolder = "p@ssword"
-	passwordContainer := fyne.NewContainerWithLayout(
-		layout.NewHBoxLayout(),
+
+	accountFormContainer := fyne.NewContainerWithLayout(
+		layout.NewGridLayoutWithColumns(2),
+		canvas.NewText("ECS-ID", color.White),
+		ecsIDentry,
 		canvas.NewText("Password", color.White),
 		passwordEntry,
 	)
@@ -69,20 +67,23 @@ func MakeForm(parent fyne.Window) fyne.CanvasObject {
 
 	buttonContainer := fyne.NewContainerWithLayout(
 		layout.NewHBoxLayout(),
+		layout.NewSpacer(),
 		save,
 		cancel,
+		layout.NewSpacer(),
 	)
 
 	header := canvas.NewText("Enter your account information", color.White)
 	header.Alignment = fyne.TextAlignCenter
 
 	middle := canvas.NewText("Select file types not to download", color.White)
-	middle.Alignment = fyne.TextAlignLeading
+	middle.Alignment = fyne.TextAlignCenter
 
 	base := fyne.NewContainerWithLayout(
 		layout.NewVBoxLayout(),
-		ecsContainer,
-		passwordContainer,
+		header,
+		accountFormContainer,
+		middle,
 		videoCheck,
 		audioCheck,
 		excelCheck,

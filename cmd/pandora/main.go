@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
 	"os/exec"
 	"pandora/pkg/account"
 	"pandora/pkg/resource"
@@ -21,8 +20,9 @@ func menuReady() {
 	systray.SetTitle("PandorA")
 	download := systray.AddMenuItem("Download", "Download resources in PandA")
 	settings := systray.AddMenuItem("Settings", "Settings")
-	logButton := systray.AddMenuItem("Log", "Print log")
 	quit := systray.AddMenuItem("Quit", "Quit PandorA")
+
+	windowExist := false
 
 	for {
 		select {
@@ -34,11 +34,14 @@ func menuReady() {
 			resource.Download(ecsID, password, rejectable)
 
 		case <-settings.ClickedCh:
-			exec.Command("./form").Run()
-			log.Print("画面出力")
-
-		case <-logButton.ClickedCh:
-			log.Println("ログ出力")
+			if !windowExist {
+				// 画面が二つ以上表示されないようにする
+				windowExist = true
+				if err := exec.Command("../form/form").Run(); err != nil {
+					beeep.Alert("PandorA Error", err.Error(), "")
+				}
+				windowExist = false
+			}
 
 		case <-quit.ClickedCh:
 			systray.Quit()

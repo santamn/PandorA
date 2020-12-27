@@ -20,3 +20,5 @@ go.sum
 
 # 実行ファイルを除外
 cmd/pandora/pandora
+cmd/pandora/form
+cmd/form/form
