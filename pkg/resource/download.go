@@ -82,19 +82,19 @@ func (r *RejectableType) Encode() string {
 func DecodeRejectableType(code uint) (r *RejectableType) {
 	r = new(RejectableType)
 
-	if code&16 == 1 {
+	if code&16 != 0 {
 		r.Video = true
 	}
-	if code&8 == 1 {
+	if code&8 != 0 {
 		r.Audio = true
 	}
-	if code&4 == 1 {
+	if code&4 != 0 {
 		r.Excel = true
 	}
-	if code&2 == 1 {
+	if code&2 != 0 {
 		r.PowerPoint = true
 	}
-	if code&1 == 1 {
+	if code&1 != 0 {
 		r.Word = true
 	}
 
@@ -102,25 +102,27 @@ func DecodeRejectableType(code uint) (r *RejectableType) {
 }
 
 // Download 資料をダウンロード
-func Download(ecsID, password string, reject *RejectableType) {
+func Download(ecsID, password string, reject *RejectableType) error {
 	lic, err := pandaapi.NewLoggedInClient(ecsID, password)
 	if err != nil {
-		fmt.Println(err)
+		return err
 	}
 
 	sites, err := collectSites(lic)
 	if err != nil {
-		fmt.Println(err)
+		return err
 	}
 
 	resources, err := collectUnacquiredResouceInfo(lic, sites, reject)
 	if err != nil {
-		fmt.Println(err)
+		return err
 	}
 
 	if errors := paraDownload(lic, resources); len(errors) > 0 {
-		fmt.Println(errors)
+		return errors[0]
 	}
+
+	return nil
 }
 
 // paraDownload 未取得のリソースを並列にダウンロードする関数
@@ -145,7 +147,6 @@ func paraDownload(lic *pandaapi.LoggedInClient, resources []resource) (errors []
 			// リソースをダウンロード
 			resp, err := lic.FetchResource(info.URL)
 			resultChan <- result{response: resp, info: info, err: err}
-
 		}(lic, res)
 	}
 

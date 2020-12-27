@@ -2,7 +2,6 @@ package pandaapi
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -41,37 +40,8 @@ type LoggedInClient struct {
 	c *http.Client
 }
 
-// DeadPandAError PandAが死んでいる時に返すエラー
-type DeadPandAError struct {
-	code int
-	err  error
-	url  string
-}
-
-func (d *DeadPandAError) Error() string {
-	if d.err != nil {
-		return fmt.Sprintf("Status code %d in %s\nerror: %s\n", d.code, d.url, d.err)
-	}
-
-	return fmt.Sprintf("Status code %d: in %s\n", d.code, d.url)
-}
-
-// FailedLoginError ログインに失敗したときのエラー
-type FailedLoginError struct {
-	EscID    string
-	Password string
-}
-
-func (f *FailedLoginError) Error() string {
-	return fmt.Sprintf(
-		"Login failed. Please confirm your EcsID and password.\nEcsID: %s\nPassword: %s",
-		f.EscID,
-		f.Password,
-	)
-}
-
-// IsAlive PandAサーバが生きているかどうかを判定する
-func IsAlive() bool {
+// CheckPandaStatus PandAサーバが生きているかどうかを判定する
+func CheckPandaStatus() error {
 	// リダイレクトを無効にする
 	c := http.DefaultClient
 	c.CheckRedirect = func(req *http.Request, via []*http.Request) error {
@@ -80,7 +50,7 @@ func IsAlive() bool {
 
 	resp, err := c.Head(pandaDomain)
 	if err != nil {
-		return false
+		return &NetworkError{err: err}
 	}
 	defer func() {
 		io.Copy(ioutil.Discard, resp.Body)
@@ -88,10 +58,10 @@ func IsAlive() bool {
 	}()
 
 	if resp.StatusCode != 200 {
-		return false
+		return &DeadPandAError{code: resp.StatusCode, err: nil, url: pandaDomain}
 	}
 
-	return true
+	return nil
 }
 
 // FetchAllSites 全ての授業サイトの情報を取得するAPI レスポンスボディをクローズする必要がある
@@ -122,7 +92,7 @@ func (lic *LoggedInClient) FetchSiteResources(siteID string) (resp *http.Respons
 func (lic *LoggedInClient) FetchResource(uri string) (resp *http.Response, err error) {
 	resp, err = lic.c.Get(uri)
 	if err != nil {
-		return
+		return resp, &NetworkError{err: err}
 	}
 
 	// 通常のダウンロードに成功した場合
@@ -136,17 +106,22 @@ func (lic *LoggedInClient) FetchResource(uri string) (resp *http.Response, err e
 		path := strings.Replace(uri, pandaResource, "", 1)
 		// 資料のダウンロードの許可をくれるパスへクエリを投げる
 		query := "ref=" + path + "&url=" + path
-
-		p, e := lic.c.Get(pandaAcception + query)
+		r, e := lic.c.Get(pandaAcception + query)
 		if e != nil {
-			return resp, e
+			return resp, &NetworkError{err: e}
 		}
 		defer func() {
-			io.Copy(ioutil.Discard, p.Body)
-			p.Body.Close()
+			io.Copy(ioutil.Discard, r.Body)
+			r.Body.Close()
 		}()
 
 		resp, err = lic.c.Get(uri)
+		if err != nil {
+			return resp, &NetworkError{err: err}
+		}
+		if resp.StatusCode != 200 {
+			return resp, &DeadPandAError{code: resp.StatusCode, err: err, url: uri}
+		}
 		return
 	}
 
@@ -162,7 +137,7 @@ func NewLoggedInClient(ecsID, password string) (lic *LoggedInClient, err error) 
 
 	// まずPandAの生存確認を行う
 	// この関数内ではここで生存が確認された場合にはログイン中はPandAが死んでいないものと推定する
-	if !IsAlive() {
+	if err := CheckPandaStatus(); err != nil {
 		return &LoggedInClient{c: client}, err
 	}
 
@@ -170,7 +145,7 @@ func NewLoggedInClient(ecsID, password string) (lic *LoggedInClient, err error) 
 	// この際Pandaのドメインに対しJESESSIONIDが紐付けられる
 	loginPage, err := client.Get(pandaLogin)
 	if err != nil {
-		return &LoggedInClient{c: client}, err
+		return &LoggedInClient{c: client}, &NetworkError{err: err}
 	}
 	defer loginPage.Body.Close()
 
@@ -215,7 +190,7 @@ func login(client *http.Client, lt, ecsID, password string) (loggedInClient *htt
 	// この際、クエリパラメータとして発行されるticketを用いて、JSESSIONIDを認証済みにする処理がサーバー側で行われる
 	resp, err := client.Do(req)
 	if err != nil {
-		return client, err
+		return client, &NetworkError{err: err}
 	}
 	defer resp.Body.Close()
 

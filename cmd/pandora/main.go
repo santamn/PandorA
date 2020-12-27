@@ -1,17 +1,65 @@
 package main
 
 import (
+	"log"
 	"os/exec"
 	"pandora/pkg/account"
+	pandaapi "pandora/pkg/pandaAPI"
 	"pandora/pkg/resource"
+	"time"
 
 	"github.com/gen2brain/beeep"
 	"github.com/getlantern/systray"
 )
 
+const (
+	pathToForm = "../form/form"
+)
+
+var (
+	showCh chan struct{}
+)
+
+func init() {
+	showCh = make(chan struct{})
+}
+
 func main() {
 	// メニューバーを起動
-	systray.Run(menuReady, menuExit)
+	go systray.Run(menuReady, menuExit)
+
+	// ユーザー情報を設定するウィンドウの起動を監視
+	go windowManager("../form/form", showCh)
+
+	// 4時間おきにダウンロードを実行
+	ticker := time.NewTicker(4 * time.Hour)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			ecsID, password, rejectable, err := account.ReadAccountInfo()
+			if err != nil {
+				// アカウント情報を入力させる
+				showCh <- struct{}{}
+			}
+			ecsID, password, rejectable, err = account.ReadAccountInfo()
+			if err != nil {
+				// 2回目にエラーが出た場合はエラーを表示して終了する
+				beeep.Alert("PandorA Error", err.Error(), "")
+				return
+			}
+
+			if err := resource.Download(ecsID, password, rejectable); err != nil {
+				switch err.(type) {
+				case *pandaapi.NetworkError:
+				case *pandaapi.DeadPandAError:
+				case *pandaapi.FailedLoginError:
+				default:
+				}
+			}
+		}
+	}
 }
 
 // menuReady メニューを初期化する
@@ -21,8 +69,6 @@ func menuReady() {
 	download := systray.AddMenuItem("Download", "Download resources in PandA")
 	settings := systray.AddMenuItem("Settings", "Settings")
 	quit := systray.AddMenuItem("Quit", "Quit PandorA")
-
-	windowExist := false
 
 	for {
 		select {
@@ -34,14 +80,7 @@ func menuReady() {
 			resource.Download(ecsID, password, rejectable)
 
 		case <-settings.ClickedCh:
-			if !windowExist {
-				// 画面が二つ以上表示されないようにする
-				windowExist = true
-				if err := exec.Command("../form/form").Run(); err != nil {
-					beeep.Alert("PandorA Error", err.Error(), "")
-				}
-				windowExist = false
-			}
+			showCh <- struct{}{}
 
 		case <-quit.ClickedCh:
 			systray.Quit()
@@ -52,3 +91,23 @@ func menuReady() {
 
 // menuExit メニューを終了する
 func menuExit() {}
+
+// windowManager ユーザー情報を入力するウィンドウの起動を監視
+func windowManager(path string, showCh <-chan struct{}) {
+	cmd := exec.Command(path)
+	windowExist := false
+
+	for range showCh {
+		log.Println("はじめ")
+		if !windowExist {
+			log.Println("画面")
+			windowExist = true
+			// UIを起動
+			if err := cmd.Run(); err != nil {
+				beeep.Alert("PandorA Error", err.Error(), "")
+			}
+			windowExist = false
+		}
+		log.Println("終わり")
+	}
+}
