@@ -1,11 +1,11 @@
 package main
 
 import (
-	"log"
 	"os/exec"
 	"pandora/pkg/account"
 	pandaapi "pandora/pkg/pandaAPI"
 	"pandora/pkg/resource"
+	"sync"
 	"time"
 
 	"github.com/gen2brain/beeep"
@@ -84,30 +84,40 @@ func menuReady() {
 
 		case <-quit.ClickedCh:
 			systray.Quit()
+			close(showCh)
 			return
 		}
 	}
 }
 
 // menuExit メニューを終了する
-func menuExit() {}
+func menuExit() {
+	close(showCh)
+}
 
 // windowManager ユーザー情報を入力するウィンドウの起動を監視
 func windowManager(path string, showCh <-chan struct{}) {
-	cmd := exec.Command(path)
 	windowExist := false
+	m := new(sync.Mutex)
+	wg := new(sync.WaitGroup)
 
-	for range showCh {
-		log.Println("はじめ")
-		if !windowExist {
-			log.Println("画面")
-			windowExist = true
-			// UIを起動
-			if err := cmd.Run(); err != nil {
-				beeep.Alert("PandorA Error", err.Error(), "")
-			}
-			windowExist = false
+	for {
+		if _, ok := <-showCh; ok && !windowExist {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				m.Lock()
+				windowExist = true
+				m.Unlock()
+				// UIを起動
+				if err := exec.Command(path).Run(); err != nil {
+					beeep.Alert("PandorA Error", err.Error(), "")
+				}
+				windowExist = false
+			}()
+		} else if !ok {
+			wg.Wait()
+			return
 		}
-		log.Println("終わり")
 	}
 }
