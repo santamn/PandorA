@@ -1,9 +1,13 @@
 package dir
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
+
+	"github.com/google/uuid"
 )
 
 // デスクトップまでのパスを取得する
@@ -79,6 +83,37 @@ func FetchFile(filename, foldername string) (file *os.File, err error) {
 	}
 
 	// ファイルがなければ作成し、読み書き両用でファイルを開く
+	if _, err := os.Stat(filename); !os.IsNotExist(err) {
+		// 同名のファイルが既に存在している場合にはファイル名に(n)をつけたファイルを作成
+		text := strings.Split(filename, ".")
+
+		changed := false
+		for i := 1; i < 10; i++ {
+			var newName string
+
+			if len(text) == 2 {
+				newName = text[0] + fmt.Sprintf("(%d)", i) + text[1]
+			} else {
+				newName = fmt.Sprintf("(%d)", i) + filename
+			}
+
+			if _, err := os.Stat(newName); os.IsNotExist(err) {
+				changed = true
+				filename = newName
+				break
+			}
+		}
+
+		if !changed {
+			// 10個以上同名のファイルが存在する場合にはuuidをファイル名の頭につける
+			u, err := uuid.NewRandom()
+			if err != nil {
+				return file, err
+			}
+			filename = u.String() + filename
+		}
+	}
+
 	file, err = os.OpenFile(filename, os.O_RDWR|os.O_CREATE, 0644)
 	return
 }
