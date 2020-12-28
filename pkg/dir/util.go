@@ -68,7 +68,7 @@ func FetchFile(filename, foldername string) (file *os.File, err error) {
 	if foldername != "" {
 		if info, err := os.Stat(foldername); os.IsNotExist(err) || !info.IsDir() {
 			// 授業用のフォルダが存在しない場合は作成する
-			if err := os.Mkdir(foldername, 0766); err != nil {
+			if err := os.Mkdir(foldername, 0644); err != nil {
 				return file, err
 			}
 		}
