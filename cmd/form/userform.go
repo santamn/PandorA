@@ -14,11 +14,34 @@ import (
 
 //フォームを作成する関数
 func makeForm(parent fyne.Window) fyne.CanvasObject {
-	ecsIDentry := widget.NewEntry()
-	ecsIDentry.PlaceHolder = "ecsID"
+	ecsID, password, rejectable, err := account.ReadAccountInfo()
 
+	ecsIDentry := widget.NewEntry()
 	passwordEntry := widget.NewPasswordEntry()
-	passwordEntry.PlaceHolder = "p@ssword"
+
+	videoCheck := widget.NewCheck("Video", func(_ bool) {})
+	audioCheck := widget.NewCheck("Audio", func(_ bool) {})
+	excelCheck := widget.NewCheck("Excel", func(_ bool) {})
+	powerPointCheck := widget.NewCheck("Power Point", func(_ bool) {})
+	wordCheck := widget.NewCheck("Word", func(_ bool) {})
+
+	if err == nil {
+		ecsIDentry.Text = ecsID
+		passwordEntry.Text = password
+		videoCheck.Checked = rejectable.Video
+		audioCheck.Checked = rejectable.Audio
+		excelCheck.Checked = rejectable.Excel
+		powerPointCheck.Checked = rejectable.PowerPoint
+		wordCheck.Checked = rejectable.Word
+	} else {
+		ecsIDentry.PlaceHolder = "ecsID"
+		passwordEntry.PlaceHolder = "p@ssword"
+		videoCheck.Checked = true
+		audioCheck.Checked = true
+		excelCheck.Checked = true
+		powerPointCheck.Checked = true
+		wordCheck.Checked = true
+	}
 
 	accountFormContainer := fyne.NewContainerWithLayout(
 		layout.NewGridLayoutWithColumns(2),
@@ -27,17 +50,6 @@ func makeForm(parent fyne.Window) fyne.CanvasObject {
 		canvas.NewText("Password", color.White),
 		passwordEntry,
 	)
-
-	videoCheck := widget.NewCheck("Video", func(_ bool) {})
-	videoCheck.Checked = true
-	audioCheck := widget.NewCheck("Audio", func(_ bool) {})
-	audioCheck.Checked = true
-	excelCheck := widget.NewCheck("Excel", func(_ bool) {})
-	excelCheck.Checked = true
-	powerPointCheck := widget.NewCheck("Power Point", func(_ bool) {})
-	powerPointCheck.Checked = true
-	wordCheck := widget.NewCheck("Word", func(_ bool) {})
-	wordCheck.Checked = true
 
 	save := widget.NewButton("Save", func() {
 		// 入力された内容をファイルに保存してウィンドウを閉じる
