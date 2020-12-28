@@ -79,6 +79,6 @@ func FetchFile(filename, foldername string) (file *os.File, err error) {
 	}
 
 	// ファイルがなければ作成し、読み書き両用でファイルを開く
-	file, err = os.OpenFile(filename, os.O_RDWR|os.O_CREATE, 0766)
+	file, err = os.OpenFile(filename, os.O_RDWR|os.O_CREATE, 0644)
 	return
 }
