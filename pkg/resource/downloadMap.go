@@ -5,6 +5,10 @@ import (
 	"pandora/pkg/dir"
 )
 
+const (
+	mapFilename = "dmap.dat"
+)
+
 // downloadMap すでにダウンロードした資料についての情報を表すマップ
 //
 // 	"SiteID1":{
@@ -26,7 +30,7 @@ type downloadMap map[string]map[string]string
 func readDownloadMap() downloadMap {
 	dmap := make(downloadMap)
 
-	mapFile, err := dir.FetchFile("dmap.dat", "")
+	mapFile, err := dir.FetchSettingsFile(mapFilename)
 	if err != nil {
 		return dmap
 	}
@@ -38,7 +42,7 @@ func readDownloadMap() downloadMap {
 
 // writeToFile ダウンロードマップをファイルに書き込む
 func (dmap downloadMap) writeToFile() error {
-	mapFile, err := dir.FetchFile("dmap.dat", "")
+	mapFile, err := dir.FetchSettingsFile(mapFilename)
 	if err != nil {
 		return err
 	}

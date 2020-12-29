@@ -92,7 +92,7 @@ func FetchFile(filename, foldername string) (file *os.File, err error) {
 			var newName string
 
 			if len(text) == 2 {
-				newName = text[0] + fmt.Sprintf("(%d)", i) + text[1]
+				newName = text[0] + fmt.Sprintf("(%d)", i) + "." + text[1]
 			} else {
 				newName = fmt.Sprintf("(%d)", i) + filename
 			}
@@ -116,4 +116,10 @@ func FetchFile(filename, foldername string) (file *os.File, err error) {
 
 	file, err = os.OpenFile(filename, os.O_RDWR|os.O_CREATE, 0644)
 	return
+}
+
+// FetchSettingsFile 設定ファイルを実行ファイルと同じディレクトリに生成する
+func FetchSettingsFile(filename string) (file *os.File, err error) {
+	// ファイルがなければ作成し、存在する場合は既に存在するファイルをオープンする
+	return os.OpenFile(filename, os.O_RDWR|os.O_CREATE, 0644)
 }

@@ -24,23 +24,37 @@ func init() {
 }
 
 func main() {
+	var wg sync.WaitGroup
 	// メニューバーを起動
-	go systray.Run(menuReady, menuExit)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		systray.Run(menuReady, menuExit)
+	}()
 
 	// 4時間おきにダウンロードを実行
 	ticker := time.NewTicker(4 * time.Hour)
 	defer ticker.Stop()
 
 	var d downloadManager
-
 	for {
 		select {
 		case <-downloadClickedCh: // ボタンを押された場合の実行
-			go d.excute(true)
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				d.excute(true)
+			}()
+
 		case <-ticker.C: // 定期実行
-			go d.excute(false)
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				d.excute(false)
+			}()
 		}
 	}
+	wg.Wait()
 }
 
 // menuReady メニューを初期化する

@@ -12,7 +12,7 @@ func main() {
 	pandora.Settings().SetTheme(theme.DarkTheme())
 	window := pandora.NewWindow("PandorA")
 	object := makeForm(window)
-	window.Resize(fyne.NewSize(300, 200))
+	window.Resize(fyne.NewSize(400, 200))
 	window.SetContent(object)
 	window.ShowAndRun()
 }

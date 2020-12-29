@@ -3,6 +3,7 @@ package main
 import (
 	"image/color"
 	"pandora/pkg/account"
+	pandaapi "pandora/pkg/pandaAPI"
 	"pandora/pkg/resource"
 
 	"fyne.io/fyne"
@@ -26,6 +27,7 @@ func makeForm(parent fyne.Window) fyne.CanvasObject {
 	wordCheck := widget.NewCheck("Word", func(_ bool) {})
 
 	if err == nil {
+		// 既にアカウント情報が存在する場合はアカウントの情報を表示する
 		ecsIDentry.Text = ecsID
 		passwordEntry.Text = password
 		videoCheck.Checked = rejectable.Video
@@ -56,6 +58,10 @@ func makeForm(parent fyne.Window) fyne.CanvasObject {
 		id := ecsIDentry.Text
 		password := passwordEntry.Text
 
+		if id == "" || password == "" {
+			return
+		}
+
 		rejectable := new(resource.RejectableType)
 		rejectable.Video = videoCheck.Checked
 		rejectable.Audio = audioCheck.Checked
@@ -63,12 +69,24 @@ func makeForm(parent fyne.Window) fyne.CanvasObject {
 		rejectable.PowerPoint = powerPointCheck.Checked
 		rejectable.Word = wordCheck.Checked
 
-		if id != "" && password != "" {
-			if err := account.WriteAccountInfo(id, password, rejectable); err != nil {
-				dialog.NewError(err, parent)
-			}
-			parent.Close()
+		// 入力されたアカウント情報を確認する
+		prog := dialog.NewProgressInfinite("Confirming", "Confirming Account Info", parent)
+		prog.Show()
+		if _, err := pandaapi.NewLoggedInClient(id, password); err != nil {
+			prog.Hide()
+			dialog.ShowError(err, parent)
+			return
 		}
+		prog.Hide()
+
+		if err := account.WriteAccountInfo(id, password, rejectable); err != nil {
+			dialog.NewError(err, parent)
+			return
+		}
+
+		info := dialog.NewInformation("Info", "Completed! Login sucseeded", parent)
+		info.SetOnClosed(parent.Close)
+		info.Show()
 	})
 
 	cancel := widget.NewButton("Cancel", func() {

@@ -20,7 +20,7 @@ func WriteAccountInfo(ecsID, password string, rejectable *resource.RejectableTyp
 	rejectNum := rejectable.Encode()
 	data := []byte(ecsID + ":" + password + ":" + rejectNum)
 
-	file, err := dir.FetchFile(accountFile, "")
+	file, err := dir.FetchSettingsFile(accountFile)
 	if err != nil {
 		return err
 	}
@@ -34,7 +34,7 @@ func WriteAccountInfo(ecsID, password string, rejectable *resource.RejectableTyp
 
 // ReadAccountInfo アカウント情報の読み出しを行う
 func ReadAccountInfo() (ecsID, password string, rejectable *resource.RejectableType, err error) {
-	file, err := dir.FetchFile(accountFile, "")
+	file, err := dir.FetchSettingsFile(accountFile)
 	if err != nil {
 		return "", "", nil, err
 	}
