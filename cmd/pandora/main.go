@@ -17,19 +17,13 @@ const (
 )
 
 var (
-	showCh chan struct{}
+	windowExist bool
+	windowMu    sync.Mutex
 )
-
-func init() {
-	showCh = make(chan struct{})
-}
 
 func main() {
 	// メニューバーを起動
 	go systray.Run(menuReady, menuExit)
-
-	// ユーザー情報を設定するウィンドウの起動を監視
-	go windowManager("../form/form", showCh)
 
 	// 4時間おきにダウンロードを実行
 	ticker := time.NewTicker(4 * time.Hour)
@@ -41,7 +35,7 @@ func main() {
 			ecsID, password, rejectable, err := account.ReadAccountInfo()
 			if err != nil {
 				// アカウント情報を入力させる
-				showCh <- struct{}{}
+				showWindow()
 			}
 			ecsID, password, rejectable, err = account.ReadAccountInfo()
 			if err != nil {
@@ -53,9 +47,14 @@ func main() {
 			if err := resource.Download(ecsID, password, rejectable); err != nil {
 				switch err.(type) {
 				case *pandaapi.NetworkError:
+					beeep.Alert("PandorA Error", "Network Error: something wrong with connecting the Internet", "")
 				case *pandaapi.DeadPandAError:
+					beeep.Alert("PandorA Error", err.Error(), "")
 				case *pandaapi.FailedLoginError:
+					beeep.Alert("PandorA Error", err.Error(), "")
+					showWindow()
 				default:
+					beeep.Alert("PandorA Error", "System Error: "+err.Error(), "")
 				}
 			}
 		}
@@ -80,11 +79,10 @@ func menuReady() {
 			resource.Download(ecsID, password, rejectable)
 
 		case <-settings.ClickedCh:
-			showCh <- struct{}{}
+			showWindow()
 
 		case <-quit.ClickedCh:
 			systray.Quit()
-			close(showCh)
 			return
 		}
 	}
@@ -92,32 +90,23 @@ func menuReady() {
 
 // menuExit メニューを終了する
 func menuExit() {
-	close(showCh)
 }
 
-// windowManager ユーザー情報を入力するウィンドウの起動を監視
-func windowManager(path string, showCh <-chan struct{}) {
-	windowExist := false
-	m := new(sync.Mutex)
-	wg := new(sync.WaitGroup)
+// showWindow ユーザー情報を入力するウィンドウを起動
+// どのスレッドから呼ばれても画面が一つしか表示されないようにする
+func showWindow() {
+	path := "../form/form"
 
-	for {
-		if _, ok := <-showCh; ok && !windowExist {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				m.Lock()
-				windowExist = true
-				m.Unlock()
-				// UIを起動
-				if err := exec.Command(path).Run(); err != nil {
-					beeep.Alert("PandorA Error", err.Error(), "")
-				}
-				windowExist = false
-			}()
-		} else if !ok {
-			wg.Wait()
-			return
+	windowMu.Lock()
+	if !windowExist {
+		windowExist = true
+		windowMu.Unlock()
+		// UIを起動
+		if err := exec.Command(path).Run(); err != nil {
+			beeep.Alert("PandorA Error", err.Error(), "")
 		}
+		windowExist = false
+	} else {
+		windowMu.Unlock()
 	}
 }
