@@ -1,9 +1,9 @@
 package account
 
 import (
-	"bufio"
 	"encoding/binary"
 	"errors"
+	"io/ioutil"
 	"pandora/pkg/dir"
 	"pandora/pkg/resource"
 	"strconv"
@@ -34,14 +34,12 @@ func WriteAccountInfo(ecsID, password string, rejectable *resource.RejectableTyp
 
 // ReadAccountInfo アカウント情報の読み出しを行う
 func ReadAccountInfo() (ecsID, password string, rejectable *resource.RejectableType, err error) {
-	file, err := dir.FetchSettingsFile(accountFile)
+	content, err := ioutil.ReadFile(accountFile)
 	if err != nil {
 		return "", "", nil, err
 	}
 
-	content := bufio.NewScanner(file).Bytes()
-
-	text := strings.Split(string(rot47(content)), ":")
+	text := strings.SplitN(string(rot47(content)), ":", 3)
 	if len(text) != 3 {
 		err = errors.New("Invalid format")
 		return

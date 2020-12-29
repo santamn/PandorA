@@ -22,3 +22,5 @@
 cmd/pandora/pandora
 cmd/pandora/form
 cmd/form/form
+
+*.dat

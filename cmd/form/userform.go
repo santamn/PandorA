@@ -56,9 +56,9 @@ func makeForm(parent fyne.Window) fyne.CanvasObject {
 	save := widget.NewButton("Save", func() {
 		// 入力された内容をファイルに保存してウィンドウを閉じる
 		id := ecsIDentry.Text
-		password := passwordEntry.Text
+		pass := passwordEntry.Text
 
-		if id == "" || password == "" {
+		if id == "" || pass == "" {
 			return
 		}
 
@@ -72,14 +72,14 @@ func makeForm(parent fyne.Window) fyne.CanvasObject {
 		// 入力されたアカウント情報を確認する
 		prog := dialog.NewProgressInfinite("Confirming", "Confirming Account Info", parent)
 		prog.Show()
-		if _, err := pandaapi.NewLoggedInClient(id, password); err != nil {
+		if _, err := pandaapi.NewLoggedInClient(id, pass); err != nil {
 			prog.Hide()
 			dialog.ShowError(err, parent)
 			return
 		}
 		prog.Hide()
 
-		if err := account.WriteAccountInfo(id, password, rejectable); err != nil {
+		if err := account.WriteAccountInfo(id, pass, rejectable); err != nil {
 			dialog.NewError(err, parent)
 			return
 		}
