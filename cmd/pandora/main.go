@@ -2,9 +2,6 @@ package main
 
 import (
 	"os/exec"
-	"pandora/pkg/account"
-	pandaapi "pandora/pkg/pandaAPI"
-	"pandora/pkg/resource"
 	"sync"
 	"time"
 
@@ -17,9 +14,14 @@ const (
 )
 
 var (
-	windowExist bool
-	windowMu    sync.Mutex
+	windowExist       bool
+	windowMu          sync.Mutex
+	downloadClickedCh chan struct{}
 )
+
+func init() {
+	downloadClickedCh = make(chan struct{})
+}
 
 func main() {
 	// メニューバーを起動
@@ -29,34 +31,14 @@ func main() {
 	ticker := time.NewTicker(4 * time.Hour)
 	defer ticker.Stop()
 
+	var d downloadManager
+
 	for {
 		select {
-		case <-ticker.C:
-			ecsID, password, rejectable, err := account.ReadAccountInfo()
-			if err != nil {
-				// アカウント情報を入力させる
-				showWindow()
-			}
-			ecsID, password, rejectable, err = account.ReadAccountInfo()
-			if err != nil {
-				// 2回目にエラーが出た場合はエラーを表示して終了する
-				beeep.Alert("PandorA Error", err.Error(), "")
-				return
-			}
-
-			if err := resource.Download(ecsID, password, rejectable); err != nil {
-				switch err.(type) {
-				case *pandaapi.NetworkError:
-					beeep.Alert("PandorA Error", "Network Error: something wrong with connecting the Internet", "")
-				case *pandaapi.DeadPandAError:
-					beeep.Alert("PandorA Error", err.Error(), "")
-				case *pandaapi.FailedLoginError:
-					beeep.Alert("PandorA Error", err.Error(), "")
-					showWindow()
-				default:
-					beeep.Alert("PandorA Error", "System Error: "+err.Error(), "")
-				}
-			}
+		case <-downloadClickedCh: // ボタンを押された場合の実行
+			go d.excute(true)
+		case <-ticker.C: // 定期実行
+			go d.excute(false)
 		}
 	}
 }
@@ -72,11 +54,7 @@ func menuReady() {
 	for {
 		select {
 		case <-download.ClickedCh:
-			ecsID, password, rejectable, err := account.ReadAccountInfo()
-			if err != nil {
-				beeep.Alert("PandorA Error", "Failed to read account info", "")
-			}
-			resource.Download(ecsID, password, rejectable)
+			downloadClickedCh <- struct{}{}
 
 		case <-settings.ClickedCh:
 			showWindow()
@@ -89,8 +67,7 @@ func menuReady() {
 }
 
 // menuExit メニューを終了する
-func menuExit() {
-}
+func menuExit() {}
 
 // showWindow ユーザー情報を入力するウィンドウを起動
 // どのスレッドから呼ばれても画面が一つしか表示されないようにする
