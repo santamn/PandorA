@@ -14,6 +14,7 @@ func main() {
 func menuReady() {
 	// メニューバーにタブを設定
 	systray.SetTitle("PandorA")
+	systray.SetIcon(iconData)
 	downloadButton := systray.AddMenuItem("Download", "Download resources in PandA")
 	settingsButton := systray.AddMenuItem("Settings", "Settings")
 	quitButton := systray.AddMenuItem("Quit", "Quit PandorA")
