@@ -69,7 +69,7 @@ func makeForm(parent fyne.Window) fyne.CanvasObject {
 		rejectable.PowerPoint = powerPointCheck.Checked
 		rejectable.Word = wordCheck.Checked
 
-		// 入力されたアカウント情報を確認する
+		// 入力されたアカウント情報でログインできるかを確認する
 		prog := dialog.NewProgressInfinite("Confirming", "Confirming Account Info", parent)
 		prog.Show()
 		if _, err := pandaapi.NewLoggedInClient(id, pass); err != nil {

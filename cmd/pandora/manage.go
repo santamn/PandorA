@@ -2,13 +2,17 @@ package main
 
 import (
 	"fmt"
+	"os/exec"
 	"pandora/pkg/account"
 	pandaapi "pandora/pkg/pandaAPI"
 	"pandora/pkg/resource"
 	"sync"
 	"time"
+
+	"github.com/gen2brain/beeep"
 )
 
+// downloadManager ダウンロード実行中に並列して実行されたり、短いタイムスパンでダウンロードが実行されないように制御する
 type downloadManager struct {
 	isRunning        bool
 	lastExecutedTime time.Time
@@ -31,7 +35,8 @@ func (download *downloadManager) excute(clicked bool) {
 		ecsID, password, rejectable, err := account.ReadAccountInfo()
 		if err != nil {
 			// アカウント情報を入力させる
-			showWindow() // TODO:既にウィンドウが開かれている状態だとここでアカウント情報が修正されるのを待つことができない
+			window.show()
+			window.wg.Wait() // アカウント情報の入力を待つ
 		}
 		ecsID, password, rejectable, err = account.ReadAccountInfo()
 		if err != nil {
@@ -48,12 +53,12 @@ func (download *downloadManager) excute(clicked bool) {
 
 			switch err.(type) {
 			case *pandaapi.NetworkError:
-				alert("Network Error: something wrong with connecting the Internet") //TODO:ネッt障害のエラーをどこかにログとして出力して置くかどうか考える
+				alert("Network Error: something wrong with connecting the Internet") //TODO:ネット障害のエラーをどこかにログとして出力して置くかどうか考える
 			case *pandaapi.DeadPandAError:
 				alert(err.Error())
 			case *pandaapi.FailedLoginError:
 				alert(err.Error())
-				showWindow()
+				window.show()
 			default:
 				alert("System Error: " + err.Error())
 			}
@@ -63,5 +68,34 @@ func (download *downloadManager) excute(clicked bool) {
 		}
 	} else {
 		download.mu.Unlock()
+	}
+}
+
+// windowManager ウィンドウが画面に一つだけ表示されるよう管理する
+type windowManager struct {
+	isShowing bool
+	mu        sync.Mutex
+	wg        sync.WaitGroup
+}
+
+func (w *windowManager) show() {
+	path := "../form/form"
+
+	w.mu.Lock()
+	if !w.isShowing {
+		w.isShowing = true
+		w.wg.Add(1)
+		w.mu.Unlock()
+
+		// UIを起動
+		if err := exec.Command(path).Run(); err != nil {
+			beeep.Alert("PandorA Error", err.Error(), "")
+		}
+
+		w.isShowing = false
+		// wg.Waitを使えばここで画面が終了することを待つことができる
+		w.wg.Done()
+	} else {
+		w.mu.Unlock()
 	}
 }

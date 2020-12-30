@@ -1,22 +1,15 @@
 package main
 
 import (
-	"os/exec"
 	"sync"
 	"time"
 
-	"github.com/gen2brain/beeep"
 	"github.com/getlantern/systray"
 )
 
-const (
-	pathToForm = "../form/form"
-)
-
 var (
-	windowExist       bool
-	windowMu          sync.Mutex
 	downloadClickedCh chan struct{}
+	window            *windowManager
 )
 
 func init() {
@@ -39,7 +32,7 @@ func main() {
 	var d downloadManager
 	for {
 		select {
-		case <-downloadClickedCh: // ボタンを押された場合の実行
+		case <-downloadClickedCh: // ダウンロードボタンを押された場合の実行
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -71,7 +64,7 @@ func menuReady() {
 			downloadClickedCh <- struct{}{}
 
 		case <-settings.ClickedCh:
-			showWindow()
+			window.show()
 
 		case <-quit.ClickedCh:
 			systray.Quit()
@@ -82,22 +75,3 @@ func menuReady() {
 
 // menuExit メニューを終了する
 func menuExit() {}
-
-// showWindow ユーザー情報を入力するウィンドウを起動
-// どのスレッドから呼ばれても画面が一つしか表示されないようにする
-func showWindow() {
-	path := "../form/form"
-
-	windowMu.Lock()
-	if !windowExist {
-		windowExist = true
-		windowMu.Unlock()
-		// UIを起動
-		if err := exec.Command(path).Run(); err != nil {
-			beeep.Alert("PandorA Error", err.Error(), "")
-		}
-		windowExist = false
-	} else {
-		windowMu.Unlock()
-	}
-}
