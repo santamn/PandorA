@@ -19,7 +19,7 @@ type downloadManager struct {
 	mu               sync.Mutex
 }
 
-func (download *downloadManager) excute(clicked bool) {
+func (download *downloadManager) excute(window *windowManager, clicked bool) {
 	download.mu.Lock()
 	if !download.isRunning {
 		download.isRunning = true
@@ -27,7 +27,7 @@ func (download *downloadManager) excute(clicked bool) {
 
 		if min := time.Now().Sub(download.lastExecutedTime).Minutes(); min < 10 && clicked {
 			// 前のダウンロードからの経過時間が10分以内にユーザーによる再度の実行の要求があれば警告を出して終了する
-			alert(fmt.Sprintf("PandorA needs cool time. Please try after %d min later at least", uint(10-min)))
+			alert(fmt.Sprintf("PandorA needs cool time. Please try after %d minute(s) later at least.", uint(10-min)))
 			download.isRunning = false
 			return
 		}
