@@ -41,19 +41,20 @@ func getPathToDesktop() (path string) {
 // PandorAフォルダへ移動する
 func cdPandorA() error {
 	pathToDesktop := getPathToDesktop()
+	folderName := "PandorA Box"
 
 	if err := os.Chdir(pathToDesktop); err != nil {
 		return err
 	}
 
-	if info, err := os.Stat("PandorA"); os.IsNotExist(err) || !info.IsDir() {
+	if info, err := os.Stat(folderName); os.IsNotExist(err) || !info.IsDir() {
 		// PandorAフォルダが存在しない場合は作成する
-		if err := os.Mkdir("PandorA", 0766); err != nil {
+		if err := os.Mkdir(folderName, 0766); err != nil {
 			return err
 		}
 	}
 
-	return os.Chdir("PandorA")
+	return os.Chdir(folderName)
 }
 
 // FetchFile PandorAフォルダ内のファイルを取得する関数 フォルダ名が空の場合はPandorAフォルダに直でファイルを作成・取得する
