@@ -2,7 +2,6 @@ package dir
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -10,6 +9,20 @@ import (
 
 	"github.com/google/uuid"
 )
+
+var (
+	// WorkingDirecory 実行ファイルの存在するディレクトリ
+	WorkingDirecory string
+)
+
+func init() {
+	exe, err := os.Executable()
+	if err != nil {
+		panic(err)
+	}
+
+	WorkingDirecory = filepath.Dir(exe)
+}
 
 // デスクトップまでのパスを取得する
 // 取得できない場合は$HOMEを返す
@@ -74,7 +87,7 @@ func FetchFile(filename, foldername string) (file *os.File, err error) {
 	if foldername != "" {
 		if info, err := os.Stat(foldername); os.IsNotExist(err) || !info.IsDir() {
 			// 授業用のフォルダが存在しない場合は作成する
-			if err := os.Mkdir(foldername, 0644); err != nil {
+			if err := os.Mkdir(foldername, 0766); err != nil {
 				return file, err
 			}
 		}
@@ -116,29 +129,20 @@ func FetchFile(filename, foldername string) (file *os.File, err error) {
 		}
 	}
 
-	return os.OpenFile(filename, os.O_RDWR|os.O_CREATE, 0666)
+	return os.OpenFile(filename, os.O_RDWR|os.O_CREATE, 0766)
 }
 
 // FetchSettingsFile 設定ファイルを実行ファイルと同じディレクトリに生成する
 func FetchSettingsFile(filename string) (file *os.File, err error) {
-	// 実行ファイルのディレクトリを取得
-	exe, err := os.Executable()
-	// [DEBUG]
-	log.Println("setting file path:", exe)
-	if err != nil {
-		return file, err
-	}
-
 	prev, err := filepath.Abs(".")
 	if err != nil {
 		return file, err
 	}
 	defer os.Chdir(prev)
 
-	if err := os.Chdir(filepath.Dir(exe)); err != nil {
+	if err := os.Chdir(WorkingDirecory); err != nil {
 		return file, err
 	}
 	// ファイルがなければ作成し、存在する場合は既に存在するファイルをオープンする
-	file, err = os.OpenFile(filename, os.O_RDWR|os.O_CREATE, 0666)
-	return
+	return os.OpenFile(filename, os.O_RDWR|os.O_CREATE, 0666)
 }
