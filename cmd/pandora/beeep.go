@@ -3,7 +3,7 @@ package main
 import "github.com/gen2brain/beeep"
 
 const (
-	pathToAppIcon = "icon/PandorAmini.png"
+	pathToAppIcon = "icon/PandorAmicro.png"
 )
 
 func alert(text string) error {

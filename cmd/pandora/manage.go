@@ -58,20 +58,22 @@ func (download *downloadManager) excute(window *windowManager, clicked bool) {
 		notify("NOW DOWNLOADING")
 
 		download.lastExecutedTime = time.Now()
-		if err := resource.Download(ecsID, password, rejectable); err != nil {
-			// [DEBUG]
-			log.Println("Download error", err)
+		if errors := resource.Download(ecsID, password, rejectable); len(errors) > 0 {
+			for _, err := range errors {
+				// [DEBUG]
+				log.Println("Download error", err)
 
-			switch err.(type) {
-			case *pandaapi.NetworkError:
-				alert("Network Error: something wrong with connecting the Internet") //TODO:ネット障害のエラーをどこかにログとして出力して置くかどうか考える
-			case *pandaapi.DeadPandAError:
-				alert(err.Error())
-			case *pandaapi.FailedLoginError:
-				alert(err.Error())
-				go window.show()
-			default:
-				alert("System Error: " + err.Error())
+				switch err.(type) {
+				case *pandaapi.NetworkError:
+					alert("Network Error: something wrong with connecting the Internet")
+				case *pandaapi.DeadPandAError:
+					alert(err.Error())
+				case *pandaapi.FailedLoginError:
+					alert(err.Error())
+					go window.show()
+				default:
+					alert("System Error: " + err.Error())
+				}
 			}
 		} else {
 			notify("Download succeeded!")

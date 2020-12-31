@@ -102,24 +102,24 @@ func DecodeRejectableType(code uint) (r *RejectableType) {
 }
 
 // Download 資料をダウンロード
-func Download(ecsID, password string, reject *RejectableType) error {
+func Download(ecsID, password string, reject *RejectableType) []error {
 	lic, err := pandaapi.NewLoggedInClient(ecsID, password)
 	if err != nil {
-		return err
+		return []error{err}
 	}
 
 	sites, err := collectSites(lic)
 	if err != nil {
-		return err
+		return []error{err}
 	}
 
 	resources, err := collectUnacquiredResouceInfo(lic, sites, reject)
 	if err != nil {
-		return err
+		return []error{err}
 	}
 
 	if errors := paraDownload(lic, resources); len(errors) > 0 {
-		return errors[0]
+		return errors
 	}
 
 	return nil
@@ -170,7 +170,7 @@ func paraDownload(lic *pandaapi.LoggedInClient, resources []resource) (errors []
 			continue
 		}
 
-		if _, err := io.Copy(file, result.response.Body); err != nil { // TODO:ここを並列化するかどうかを考える
+		if _, err := io.Copy(file, result.response.Body); err != nil {
 			errors = append(errors, err)
 		}
 	}
