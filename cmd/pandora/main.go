@@ -12,6 +12,16 @@ import (
 	"github.com/getlantern/systray"
 )
 
+var (
+	window   *windowManager
+	download *downloadManager
+)
+
+func init() {
+	window = newWindowManager()
+	download = &downloadManager{}
+}
+
 func main() {
 	// ログ出力を設定
 	logfile, err := os.OpenFile(
@@ -43,10 +53,7 @@ func menuReady() {
 	ticker := time.NewTicker(4 * time.Hour)
 	defer ticker.Stop()
 
-	download := new(downloadManager)
-	window := newWindowManager()
-
-	for { // TODO:goroutineの終了を待たなくて良いのか？
+	for {
 		select {
 		case <-ticker.C:
 			go download.excute(window, false)
@@ -65,4 +72,7 @@ func menuReady() {
 }
 
 // menuExit メニューを終了する
-func menuExit() {}
+func menuExit() {
+	window.quit()
+	download.wg.Wait()
+}

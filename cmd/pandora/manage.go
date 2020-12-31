@@ -20,19 +20,21 @@ type downloadManager struct {
 	isRunning        bool
 	lastExecutedTime time.Time
 	mu               sync.Mutex
+	wg               sync.WaitGroup
 }
 
-func (download *downloadManager) excute(window *windowManager, clicked bool) {
+func (d *downloadManager) excute(window *windowManager, clicked bool) {
 	defer func() {
-		download.isRunning = false
+		d.isRunning = false
 	}()
 
-	download.mu.Lock()
-	if !download.isRunning {
-		download.isRunning = true
-		download.mu.Unlock()
+	d.mu.Lock()
+	if !d.isRunning {
+		d.isRunning = true
+		d.wg.Add(1)
+		d.mu.Unlock()
 
-		if min := time.Now().Sub(download.lastExecutedTime).Minutes(); min < 10 && clicked {
+		if min := time.Now().Sub(d.lastExecutedTime).Minutes(); min < 10 && clicked {
 			// 前のダウンロードからの経過時間が10分以内にユーザーによる再度の実行の要求があれば警告を出して終了する
 			alert(fmt.Sprintf("PandorA needs cool time. Please try after %d minute(s) later at least.", uint(10-min)))
 			return
@@ -55,7 +57,7 @@ func (download *downloadManager) excute(window *windowManager, clicked bool) {
 
 		notify("NOW DOWNLOADING")
 
-		download.lastExecutedTime = time.Now()
+		d.lastExecutedTime = time.Now()
 		if errors := resource.Download(ecsID, password, rejectable); len(errors) > 0 {
 			for _, err := range errors {
 				log.Println("Download error:", err)
@@ -75,8 +77,10 @@ func (download *downloadManager) excute(window *windowManager, clicked bool) {
 		} else {
 			notify("Download succeeded!")
 		}
+		// wg.Waitを使えばここでダウンロードが終了することを待つことができる
+		d.wg.Done()
 	} else {
-		download.mu.Unlock()
+		d.mu.Unlock()
 	}
 }
 
@@ -117,11 +121,9 @@ func (w *windowManager) show() {
 	}
 }
 
-// ウィンドウを表示しているプロセスをKillする
+// ウィンドウを終了する
 func (w *windowManager) quit() {
 	if w.cmd != nil {
-		if err := w.cmd.Process.Kill(); err != nil {
-			log.Println(w.cmd.Process.Kill()) // TODO:プロセスをKillするのは強引か?
-		}
+		w.cmd.Process.Kill()
 	}
 }
