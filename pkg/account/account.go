@@ -34,7 +34,12 @@ func WriteAccountInfo(ecsID, password string, rejectable *resource.RejectableTyp
 
 // ReadAccountInfo アカウント情報の読み出しを行う
 func ReadAccountInfo() (ecsID, password string, rejectable *resource.RejectableType, err error) {
-	content, err := ioutil.ReadFile(accountFile)
+	file, err := dir.FetchSettingsFile(accountFile)
+	if err != nil {
+		return "", "", nil, err
+	}
+
+	content, err := ioutil.ReadAll(file)
 	if err != nil {
 		return "", "", nil, err
 	}

@@ -2,10 +2,13 @@ package main
 
 import (
 	"fmt"
+	"log"
+	"os"
 	"os/exec"
 	"pandora/pkg/account"
 	pandaapi "pandora/pkg/pandaAPI"
 	"pandora/pkg/resource"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -20,6 +23,10 @@ type downloadManager struct {
 }
 
 func (download *downloadManager) excute(window *windowManager, clicked bool) {
+	defer func() {
+		download.isRunning = false
+	}()
+
 	download.mu.Lock()
 	if !download.isRunning {
 		download.isRunning = true
@@ -28,18 +35,21 @@ func (download *downloadManager) excute(window *windowManager, clicked bool) {
 		if min := time.Now().Sub(download.lastExecutedTime).Minutes(); min < 10 && clicked {
 			// 前のダウンロードからの経過時間が10分以内にユーザーによる再度の実行の要求があれば警告を出して終了する
 			alert(fmt.Sprintf("PandorA needs cool time. Please try after %d minute(s) later at least.", uint(10-min)))
-			download.isRunning = false
 			return
 		}
 
 		ecsID, password, rejectable, err := account.ReadAccountInfo()
 		if err != nil {
+			// [DEBUG]
+			log.Println("read account error 1", err)
 			// アカウント情報を入力させる
 			window.show()
 			window.wg.Wait() // アカウント情報の入力を待つ
 		}
 		ecsID, password, rejectable, err = account.ReadAccountInfo()
 		if err != nil {
+			// [DEBUG]
+			log.Println("read account error 2", err)
 			// 2回目にエラーが出た場合はエラーを表示して終了する
 			alert(err.Error())
 			return
@@ -49,7 +59,8 @@ func (download *downloadManager) excute(window *windowManager, clicked bool) {
 
 		download.lastExecutedTime = time.Now()
 		if err := resource.Download(ecsID, password, rejectable); err != nil {
-			download.isRunning = false
+			// [DEBUG]
+			log.Println("Download error", err)
 
 			switch err.(type) {
 			case *pandaapi.NetworkError:
@@ -58,12 +69,11 @@ func (download *downloadManager) excute(window *windowManager, clicked bool) {
 				alert(err.Error())
 			case *pandaapi.FailedLoginError:
 				alert(err.Error())
-				window.show()
+				go window.show()
 			default:
 				alert("System Error: " + err.Error())
 			}
 		} else {
-			download.isRunning = false
 			notify("Download succeeded!")
 		}
 	} else {
@@ -73,14 +83,27 @@ func (download *downloadManager) excute(window *windowManager, clicked bool) {
 
 // windowManager ウィンドウが画面に一つだけ表示されるよう管理する
 type windowManager struct {
+	cmd       *exec.Cmd
 	isShowing bool
 	mu        sync.Mutex
+	path      string
 	wg        sync.WaitGroup
 }
 
-func (w *windowManager) show() {
-	path := "../form/form"
+func newWindowManager() (*windowManager, error) {
+	exe, err := os.Executable()
+	if err != nil {
+		return nil, err
+	}
 
+	path := filepath.Join(filepath.Dir(exe), "form")
+
+	return &windowManager{
+		path: path,
+	}, nil
+}
+
+func (w *windowManager) show() {
 	w.mu.Lock()
 	if !w.isShowing {
 		w.isShowing = true
@@ -88,14 +111,26 @@ func (w *windowManager) show() {
 		w.mu.Unlock()
 
 		// UIを起動
-		if err := exec.Command(path).Run(); err != nil {
+		w.cmd = exec.Command(w.path)
+		if err := w.cmd.Run(); err != nil {
+			// [DEBUG]
+			log.Println("show error:", err)
 			beeep.Alert("PandorA Error", err.Error(), "")
 		}
-
+		w.cmd = nil
 		w.isShowing = false
 		// wg.Waitを使えばここで画面が終了することを待つことができる
 		w.wg.Done()
 	} else {
 		w.mu.Unlock()
+	}
+}
+
+// ウィンドウを表示しているプロセスをKillする
+func (w *windowManager) quit() {
+	if w.cmd != nil {
+		if err := w.cmd.Process.Kill(); err != nil {
+			log.Println(w.cmd.Process.Kill()) // TODO:プロセスをKillするのは強引か?
+		}
 	}
 }

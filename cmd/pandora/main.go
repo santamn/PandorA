@@ -1,12 +1,28 @@
 package main
 
 import (
+	"io"
+	"log"
+	"os"
 	"time"
+
+	"pandora/cmd/pandora/icon"
 
 	"github.com/getlantern/systray"
 )
 
 func main() {
+	// [DEBUG](https://qiita.com/74th/items/441ffcab80a6a28f7ee3)
+	logfile, err := os.OpenFile("./test.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+	if err != nil {
+		panic("cannnot open test.log:" + err.Error())
+	}
+	defer logfile.Close()
+
+	// io.MultiWriteで標準出力とファイルの両方を束ねて、logの出力先に設定する
+	log.SetOutput(io.MultiWriter(logfile, os.Stdout))
+	log.SetFlags(log.Ldate | log.Ltime)
+
 	systray.Run(menuReady, menuExit)
 }
 
@@ -14,7 +30,7 @@ func main() {
 func menuReady() {
 	// メニューバーにタブを設定
 	systray.SetTitle("PandorA")
-	systray.SetIcon(iconData)
+	systray.SetIcon(icon.Data)
 	downloadButton := systray.AddMenuItem("Download", "Download resources in PandA")
 	settingsButton := systray.AddMenuItem("Settings", "Settings")
 	quitButton := systray.AddMenuItem("Quit", "Quit PandorA")
@@ -24,18 +40,23 @@ func menuReady() {
 	defer ticker.Stop()
 
 	download := new(downloadManager)
-	window := new(windowManager)
+	window, err := newWindowManager()
+	// [DEBUG]
+	if err != nil {
+		log.Println(err)
+		return
+	}
 
-	for {
+	for { // TODO:goroutineの終了を待たなくて良いのか？
 		select {
 		case <-ticker.C:
-			download.excute(window, false)
+			go download.excute(window, false)
 
 		case <-downloadButton.ClickedCh:
-			download.excute(window, true)
+			go download.excute(window, true)
 
 		case <-settingsButton.ClickedCh:
-			window.show()
+			go window.show()
 
 		case <-quitButton.ClickedCh:
 			systray.Quit()

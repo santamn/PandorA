@@ -2,6 +2,7 @@ package dir
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -115,12 +116,29 @@ func FetchFile(filename, foldername string) (file *os.File, err error) {
 		}
 	}
 
-	file, err = os.OpenFile(filename, os.O_RDWR|os.O_CREATE, 0644)
-	return
+	return os.OpenFile(filename, os.O_RDWR|os.O_CREATE, 0666)
 }
 
 // FetchSettingsFile 設定ファイルを実行ファイルと同じディレクトリに生成する
 func FetchSettingsFile(filename string) (file *os.File, err error) {
+	// 実行ファイルのディレクトリを取得
+	exe, err := os.Executable()
+	// [DEBUG]
+	log.Println("setting file path:", exe)
+	if err != nil {
+		return file, err
+	}
+
+	prev, err := filepath.Abs(".")
+	if err != nil {
+		return file, err
+	}
+	defer os.Chdir(prev)
+
+	if err := os.Chdir(filepath.Dir(exe)); err != nil {
+		return file, err
+	}
 	// ファイルがなければ作成し、存在する場合は既に存在するファイルをオープンする
-	return os.OpenFile(filename, os.O_RDWR|os.O_CREATE, 0644)
+	file, err = os.OpenFile(filename, os.O_RDWR|os.O_CREATE, 0666)
+	return
 }
