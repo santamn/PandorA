@@ -3,9 +3,9 @@ package main
 import (
 	"fmt"
 	"log"
-	"os"
 	"os/exec"
 	"pandora/pkg/account"
+	"pandora/pkg/dir"
 	pandaapi "pandora/pkg/pandaAPI"
 	"pandora/pkg/resource"
 	"path/filepath"
@@ -40,16 +40,14 @@ func (download *downloadManager) excute(window *windowManager, clicked bool) {
 
 		ecsID, password, rejectable, err := account.ReadAccountInfo()
 		if err != nil {
-			// [DEBUG]
-			log.Println("read account error 1", err)
+			log.Println("read account error 1:", err)
 			// アカウント情報を入力させる
 			window.show()
 			window.wg.Wait() // アカウント情報の入力を待つ
 		}
 		ecsID, password, rejectable, err = account.ReadAccountInfo()
 		if err != nil {
-			// [DEBUG]
-			log.Println("read account error 2", err)
+			log.Println("read account error 2:", err)
 			// 2回目にエラーが出た場合はエラーを表示して終了する
 			alert(err.Error())
 			return
@@ -60,8 +58,7 @@ func (download *downloadManager) excute(window *windowManager, clicked bool) {
 		download.lastExecutedTime = time.Now()
 		if errors := resource.Download(ecsID, password, rejectable); len(errors) > 0 {
 			for _, err := range errors {
-				// [DEBUG]
-				log.Println("Download error", err)
+				log.Println("Download error:", err)
 
 				switch err.(type) {
 				case *pandaapi.NetworkError:
@@ -92,17 +89,10 @@ type windowManager struct {
 	wg        sync.WaitGroup
 }
 
-func newWindowManager() (*windowManager, error) {
-	exe, err := os.Executable()
-	if err != nil {
-		return nil, err
-	}
-
-	path := filepath.Join(filepath.Dir(exe), "form")
-
+func newWindowManager() *windowManager {
 	return &windowManager{
-		path: path,
-	}, nil
+		path: filepath.Join(dir.WorkingDirecory, "form"),
+	}
 }
 
 func (w *windowManager) show() {
@@ -115,7 +105,6 @@ func (w *windowManager) show() {
 		// UIを起動
 		w.cmd = exec.Command(w.path)
 		if err := w.cmd.Run(); err != nil {
-			// [DEBUG]
 			log.Println("show error:", err)
 			beeep.Alert("PandorA Error", err.Error(), "")
 		}

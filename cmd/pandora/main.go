@@ -44,12 +44,7 @@ func menuReady() {
 	defer ticker.Stop()
 
 	download := new(downloadManager)
-	window, err := newWindowManager()
-	// [DEBUG]
-	if err != nil {
-		log.Println(err)
-		return
-	}
+	window := newWindowManager()
 
 	for { // TODO:goroutineの終了を待たなくて良いのか？
 		select {
