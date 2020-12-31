@@ -1,26 +1,30 @@
 package main
 
 import (
-	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"time"
 
 	"pandora/cmd/pandora/icon"
+	"pandora/pkg/dir"
 
 	"github.com/getlantern/systray"
 )
 
 func main() {
-	// [DEBUG](https://qiita.com/74th/items/441ffcab80a6a28f7ee3)
-	logfile, err := os.OpenFile("./test.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+	// ログ出力を設定
+	logfile, err := os.OpenFile(
+		filepath.Join(dir.WorkingDirecory, "pandoraError.log"),
+		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
+		0666,
+	)
 	if err != nil {
-		panic("cannnot open test.log:" + err.Error())
+		panic("cannnot open pandoraError.log:" + err.Error())
 	}
 	defer logfile.Close()
 
-	// io.MultiWriteで標準出力とファイルの両方を束ねて、logの出力先に設定する
-	log.SetOutput(io.MultiWriter(logfile, os.Stdout))
+	log.SetOutput(logfile)
 	log.SetFlags(log.Ldate | log.Ltime)
 
 	systray.Run(menuReady, menuExit)
