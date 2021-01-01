@@ -227,6 +227,7 @@ func collectUnacquiredResouceInfo(lic *pandaapi.LoggedInClient, sites []site, re
 	resources = make([]resource, 0, len(sites))
 
 	for result := range resultChan {
+
 		if result.err != nil {
 			return resources, err
 		}
@@ -294,19 +295,18 @@ func collectSites(lic *pandaapi.LoggedInClient) (sites []site, err error) {
 }
 
 // 科目名に含まれる "2020前期" の部分を作成する
-func makeSemesterDescription() (text string) {
+func makeSemesterDescription() string {
 	year, month, _ := time.Now().Date()
-
-	switch {
-	case 3 <= month && month <= 8:
-		// 前期
-		text = fmt.Sprint(year) + "前期"
-	default:
-		// 後期
-		text = fmt.Sprint(year) + "後期"
+	if month == 1 || month == 2 {
+		year--
 	}
 
-	return
+	if 3 <= month && month <= 8 {
+		// 前期
+		return fmt.Sprint(year) + "前期"
+	}
+	// 後期
+	return fmt.Sprint(year) + "後期"
 }
 
 // 与えられたContent-Typeが除外すべきかどうかを判定する
