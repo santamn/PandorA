@@ -106,7 +106,7 @@ func makeForm(parent fyne.Window) fyne.CanvasObject {
 	header := canvas.NewText("Enter your account information", color.White)
 	header.Alignment = fyne.TextAlignCenter
 
-	middle := canvas.NewText("Select file types not to download", color.White)
+	middle := canvas.NewText("Select file types NOT to download", color.White)
 	middle.Alignment = fyne.TextAlignCenter
 
 	base := fyne.NewContainerWithLayout(
