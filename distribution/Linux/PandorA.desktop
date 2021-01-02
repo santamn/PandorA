@@ -1,0 +1,8 @@
+[Desktop Entry]
+Encoding=UTF-8
+Name=PandorA
+Comment=PandA Downloader
+Exec=./pandora
+Icon=./icon/PandorAmini.png
+Terminal=false
+Type=Application
