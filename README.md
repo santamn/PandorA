@@ -29,4 +29,4 @@ PandorAボタンを押すと下のような選択肢が表示されるので、S
 ## 謝辞
 
 このアプリケーションは[@km_conner](https://twitter.com/km_conner)さんの[京大の学習支援システムをハックする](https://blog.kmconner.net/archives/161)を参考に作られました。
-また、コンセプトは同じく[@km_conner](https://twitter.com/km_conner)さんの[PandaConsole](https://github.com/KMConner/PandaConsole)と同じです。
+また、コンセプトは同じく[@km_conner](https://twitter.com/km_conner)さんの[PandaConsole](https://github.com/KMConner/PandaConsole)と全く同じです。こちらは作り始めた後に気が付きましたが、一部参考にさせていただきました。ありがとうございました。
