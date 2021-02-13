@@ -2,6 +2,7 @@ package dir
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -18,6 +19,7 @@ var (
 func init() {
 	exe, err := os.Executable()
 	if err != nil {
+		log.Fatalln(err)
 		panic(err)
 	}
 

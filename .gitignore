@@ -21,5 +21,9 @@ cmd/pandora/pandora
 cmd/pandora/form
 cmd/form/form
 
+bin/macos/*
+bin/linux/*
+bin/windows/*
+
 *.dat
 *.log

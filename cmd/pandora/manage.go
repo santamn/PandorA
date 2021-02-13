@@ -11,8 +11,6 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
-
-	"github.com/gen2brain/beeep"
 )
 
 // downloadManager ダウンロード実行中に並列して実行されたり、短いタイムスパンでダウンロードが実行されないように制御する
@@ -110,7 +108,7 @@ func (w *windowManager) show() {
 		w.cmd = exec.Command(w.path)
 		if err := w.cmd.Run(); err != nil {
 			log.Println("show error:", err)
-			beeep.Alert("PandorA Error", err.Error(), "")
+			alert(err.Error())
 		}
 		w.cmd = nil
 		w.isShowing = false
