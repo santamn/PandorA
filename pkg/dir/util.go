@@ -56,10 +56,9 @@ func getPathToDesktop() (path string) {
 
 // PandorAフォルダへ移動する
 func cdPandorA() error {
-	pathToDesktop := getPathToDesktop()
 	folderName := "PandorA Box"
 
-	if err := os.Chdir(pathToDesktop); err != nil {
+	if err := os.Chdir(getPathToDesktop()); err != nil {
 		return err
 	}
 
