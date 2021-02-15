@@ -1,10 +1,38 @@
-<!-- avoid having a blurry icon and text -->
-<key>NSHighResolutionCapable</key>
-<string>True</string>
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>CFBundleName</key>
+    <string>PandorA<string/>
 
-<!-- avoid showing the app on the Dock -->
-<key>LSUIElement</key>
-<string>1</string>
+    <key>CFBundleDisplayName</key>
+    <string>PandorA<string/>
 
-<key>CFBundleExecutable<key/>
-<string>pandora<string/>
+    <key>CFBundleIdentifier</key>
+    <string>public.data</string>
+
+    <key>CFBundleVersion</key>
+    <string>1.0</string>
+
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+
+    <key>CFBundleSignature</key>
+    <string>pndr</string>
+
+    <key>CFBundleExecutable</key>
+    <string>pandora</string>
+
+    <!-- avoid having a blurry icon and text -->
+    <key>NSHighResolutionCapable</key>
+    <string>True</string>
+
+    <!-- avoid showing the app on the Dock -->
+    <key>LSUIElement</key>
+    <string>1</string>
+
+    <key>CFBundleIconFile</key>
+    <string>PandorA</string>
+
+  </dict>
+</plist>
